@@ -9,7 +9,6 @@ WORKDIR /src
 COPY ./EchoPBX.Data/ ./EchoPBX.Data/
 COPY ./EchoPBX.Web/ ./EchoPBX.Web/
 COPY ./EchoPBX.Repositories/ ./EchoPBX.Repositories/
-COPY ./EchoPBX.AuthServer/ ./EchoPBX.AuthServer/
 COPY ./EchoPBX.sln ./EchoPBX.sln
 
 RUN dotnet restore EchoPBX.sln
