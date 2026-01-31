@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EchoPBX.Web", "EchoPBX.Web\EchoPBX.Web.csproj", "{EF9EED98-ECC8-4F34-87F9-5DAEC29C9BD0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EchoPBX.Data", "EchoPBX.Data\EchoPBX.Data.csproj", "{E23787D4-8E03-4D67-B44A-31F00799DF98}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EchoPBX.Repositories", "EchoPBX.Repositories\EchoPBX.Repositories.csproj", "{A84F8F0D-B43E-49A8-A5AC-BE8B66CEA767}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{EF9EED98-ECC8-4F34-87F9-5DAEC29C9BD0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EF9EED98-ECC8-4F34-87F9-5DAEC29C9BD0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EF9EED98-ECC8-4F34-87F9-5DAEC29C9BD0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EF9EED98-ECC8-4F34-87F9-5DAEC29C9BD0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E23787D4-8E03-4D67-B44A-31F00799DF98}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E23787D4-8E03-4D67-B44A-31F00799DF98}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E23787D4-8E03-4D67-B44A-31F00799DF98}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E23787D4-8E03-4D67-B44A-31F00799DF98}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A84F8F0D-B43E-49A8-A5AC-BE8B66CEA767}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A84F8F0D-B43E-49A8-A5AC-BE8B66CEA767}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A84F8F0D-B43E-49A8-A5AC-BE8B66CEA767}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A84F8F0D-B43E-49A8-A5AC-BE8B66CEA767}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

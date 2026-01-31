@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@import "./fonts/inter-v20-latin.css";
+
+* {
+    font-family: Inter;
+}
