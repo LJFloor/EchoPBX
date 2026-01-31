@@ -22,7 +22,7 @@ sudo apt install docker.io
 Then, run the container
 
 ```shell
-sudo docker run -t -p 5060:5060 -p 8740:8740 -v /opt/echopbx:/data ghcr.io/ljfloor/echopbx:main
+sudo docker run -t --host=network -v /opt/echopbx:/data ghcr.io/ljfloor/echopbx:main
 ```
 
 After which you can access the Web UI by going to http://(serverip):8740.
