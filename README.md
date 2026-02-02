@@ -12,6 +12,8 @@ My initial vision was something along the lines of "just install this and make y
 
 # Installation
 
+**NOTE:** Currently in pre-release, use at your own risk (should be fine tho dw)
+
 Make sure [Docker](https://www.docker.com/) is installed on your system. If not, you can install it for
 Ubuntu-based distributions using:
 
