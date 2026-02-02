@@ -29,7 +29,7 @@ After which you can access the Web UI by going to http://(serverip):8740.
 
 # Usage
 
-For running a SoftPhone (a virtual IP phone on your computer), I recommend using [MicroSIP](https://www.microsip.org){:target="_blank"}, as it is fairly easy to setup and I use it myself for testing.
+For running a SoftPhone (a virtual IP phone on your computer), I recommend using [MicroSIP](https://www.microsip.org), as it is fairly easy to setup and I use it myself for testing.
 
 # FAQ
 
