@@ -8,9 +8,9 @@ for managing extensions, trunks and queues. It is built on top of [Asterisk](htt
 The primary target audience for EchoPBX is for those who want to self-host their VoIP solution, without the
 hassle that usually comes with it.
 
-My initial vision was something along the lines of "just install this and make your life easier".
-
 # Installation
+
+**NOTE:** Currently in pre-release, use at your own risk (should be fine tho dw)
 
 Make sure [Docker](https://www.docker.com/) is installed on your system. If not, you can install it for
 Ubuntu-based distributions using:
@@ -22,10 +22,14 @@ sudo apt install docker.io
 Then, run the container
 
 ```shell
-sudo docker run -t --host=network -v /opt/echopbx:/data ghcr.io/ljfloor/echopbx:main
+sudo docker run -t --network=host -v /opt/echopbx:/data ghcr.io/ljfloor/echopbx:main
 ```
 
 After which you can access the Web UI by going to http://(serverip):8740.
+
+# Usage
+
+For running a SoftPhone (a virtual IP phone on your computer), I recommend using [MicroSIP](https://www.microsip.org), as it is fairly easy to setup and I use it myself for testing.
 
 # FAQ
 
