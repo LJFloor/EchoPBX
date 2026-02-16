@@ -29,15 +29,6 @@ public class Admin
     public required string PasswordHash { get; set; }
 
     /// <summary>
-    /// Sets the password for the admin user by hashing it using bcrypt.
-    /// </summary>
-    /// <param name="password">The password to set.</param>
-    public void SetPassword(string password)
-    {
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
-    }
-
-    /// <summary>
     /// Verifies the provided password against the stored bcrypt hash.
     /// </summary>
     /// <param name="password">The password to verify.</param>

@@ -115,7 +115,9 @@
     "delete": "Delete",
     "add-choice": "Add choice",
     "select-file": "Select file",
-    "select-files": "Select files"
+    "select-files": "Select files",
+    "logout": "Logout",
+    "change-password": "Change password"
   },
   "message": {
     "delete-extension-confirmation": "Are you sure you want to delete this extension?",

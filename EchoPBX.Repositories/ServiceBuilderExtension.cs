@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace EchoPBX.Repositories;
 
@@ -10,15 +9,14 @@ public static class ServiceBuilderExtension
     /// </summary>
     public static IServiceCollection AddRepositories(this IServiceCollection services)
     {
-        services
-            .AddScoped<ExtensionRead.IExtensionReadRepository, ExtensionRead.ExtensionReadRepository>()
-            .AddScoped<ExtensionWrite.IExtensionWriteRepository, ExtensionWrite.ExtensionWriteRepository>()
-            .AddScoped<TrunkRead.ITrunkReadRepository, TrunkRead.TrunkReadRepository>()
-            .AddScoped<TrunkWrite.ITrunkWriteRepository, TrunkWrite.TrunkWriteRepository>()
-            .AddScoped<QueueRead.IQueueReadRepository, QueueRead.QueueReadRepository>()
-            .AddScoped<QueueWrite.IQueueWriteRepository, QueueWrite.QueueWriteRepository>()
-            .AddScoped<CdrRead.ICdrReadRepository, CdrRead.CdrReadRepository>();
-
+        services.AddScoped<ExtensionRead.IExtensionReadRepository, ExtensionRead.ExtensionReadRepository>();
+        services.AddScoped<ExtensionWrite.IExtensionWriteRepository, ExtensionWrite.ExtensionWriteRepository>();
+        services.AddScoped<TrunkRead.ITrunkReadRepository, TrunkRead.TrunkReadRepository>();
+        services.AddScoped<TrunkWrite.ITrunkWriteRepository, TrunkWrite.TrunkWriteRepository>();
+        services.AddScoped<QueueRead.IQueueReadRepository, QueueRead.QueueReadRepository>();
+        services.AddScoped<QueueWrite.IQueueWriteRepository, QueueWrite.QueueWriteRepository>();
+        services.AddScoped<CdrRead.ICdrReadRepository, CdrRead.CdrReadRepository>();
+        
         return services;
     }
 }

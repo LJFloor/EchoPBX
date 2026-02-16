@@ -50,32 +50,52 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
         }
 
         var token = StringHelper.GenerateRandomString(128);
+        var expiresAt = DateTimeOffset.UtcNow.AddHours(24).ToUnixTimeSeconds();
         dbContext.Add(new AccessToken
         {
             AdminId = admin.Id,
             Token = token,
-            ExpiresAt = DateTimeOffset.UtcNow.AddHours(24).ToUnixTimeSeconds()
+            ExpiresAt = expiresAt
         });
 
         await dbContext.SaveChangesAsync();
 
-        HttpContext.Response.Cookies.Append(AuthenticationMiddleware.TokenCookieName, token);
+        HttpContext.Response.Cookies.Append(AuthenticationMiddleware.TokenCookieName, token, new CookieOptions { HttpOnly = true, Expires = DateTimeOffset.UtcNow.AddHours(24) });
+        HttpContext.Response.Cookies.Append("echopbx_username", admin.Username, new CookieOptions { HttpOnly = false, Expires = DateTimeOffset.UtcNow.AddHours(24) });
         return Ok("Login successful");
     }
 
-    [HttpPost("webphone/login")]
-    public async Task<IActionResult> WebPhoneLogin([FromBody] WebPhoneLoginRequestBody body)
+    [HttpPost("admin/logout")]
+    public async Task<IActionResult> AdminLogout()
     {
-        var extension = await dbContext.Extensions
-            .Where(x => x.ExtensionNumber == body.ExtensionNumber && x.Password == body.Password)
-            .Select(x => new { x.DisplayName })
-            .FirstOrDefaultAsync();
-
-        if (extension is null)
+        var token = HttpContext.Request.Cookies[AuthenticationMiddleware.TokenCookieName];
+        if (token != null)
         {
-            return Unauthorized("Invalid extension number or password");
+            await dbContext.AccessTokens.Where(x => x.Token == token).ExecuteDeleteAsync();
         }
-        
-        return Ok(extension);
+
+        HttpContext.Response.Cookies.Delete(AuthenticationMiddleware.TokenCookieName);
+        HttpContext.Response.Cookies.Delete("echopbx_username");
+        return Ok("Logout successful");
+    }
+
+    [HttpPut("admin/password"), RequireAdmin]
+    public async Task<IActionResult> ChangePassword([FromBody] NewPasswordBody body)
+    {
+        var token = HttpContext.Request.Cookies[AuthenticationMiddleware.TokenCookieName]!;
+        var adminId = await dbContext.AccessTokens.Where(x => x.Token == token).Select(x => x.AdminId).FirstOrDefaultAsync();
+        if (adminId == 0)
+        {
+            return Unauthorized("Invalid token");
+        }
+
+        var hashed = BCrypt.Net.BCrypt.HashPassword(body.Password);
+        await dbContext.Admins.Where(x => x.Id == adminId).ExecuteUpdateAsync(set => set
+            .SetProperty(x => x.PasswordHash, hashed)
+        );
+
+        return Ok("Password changed successfully");
     }
 }
+
+public record NewPasswordBody(string Password);
