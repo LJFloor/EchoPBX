@@ -96,7 +96,7 @@ const { t } = useTranslation();
         </div>
     </div>
 
-    <Modal v-if="changePasswordModalOpen" @close="changePasswordModalOpen = false" :title="t('button.change-password')"">
+    <Modal v-if="changePasswordModalOpen" @close="closeChangePasswordModal" :title="t('button.change-password')"">
         <SetPassword v-model:password="newPassword" v-model:valid="changePasswordValid" />
         <template #footer>
             <Btn :loading="changePasswordLoading" :disabled="!changePasswordValid" @click="putNewPassword" :label="t('button.save')" />
