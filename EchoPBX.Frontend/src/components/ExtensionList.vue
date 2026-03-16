@@ -59,7 +59,7 @@ watch(displayExtensions, (newVal) => {
             <Btn design="icon-secondary" icon="mdi:arrow-down" :disabled="i === extensions.length - 1"
                 @click="moveDown(i)" />
         </div>
-        <Btn :disabled="displayExtensions.length >= availableExtensions.length" design="banner" label="Extensie toevoegen" icon="mdi:plus" @click="addNewExtension" />
+        <Btn :disabled="displayExtensions.length >= availableExtensions.length" design="banner" label="Add extension" icon="mdi:plus" @click="addNewExtension" />
 
     </div>
 </template>
