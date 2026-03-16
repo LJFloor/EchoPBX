@@ -90,9 +90,9 @@ document.title = t('label.extensions');
                 </template>
                 <template #actions="{ row }">
                     <DropdownButton :disabled="!row?.connected" icon="mdi:crosshairs-question" label="Identificeren"
-                        title="Belt de extensie voor een paar seconden, zodat u kunt horen welk apparaat verbonden is"
+                        title="Rings the extension for a few seconds, so you can identify the phone it is connected to."
                         design="primary" @click="ring(row)" />
-                    <DropdownButton icon="mdi:delete" label="Verwijderen" design="danger" @click="deleteExtension(row)" />
+                    <DropdownButton icon="mdi:delete" label="Delete" design="danger" @click="deleteExtension(row)" />
                 </template>
             </DataGrid>
 
