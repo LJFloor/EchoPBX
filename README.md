@@ -10,7 +10,7 @@ hassle that usually comes with it.
 
 # Installation
 
-**Disclaimer:** EchoPBX is **currently in BETA**.
+**Disclaimer:** EchoPBX is **currently in BETA**. EchoPBX is made in the hope that it is useful. If you experience difficulties installing or configuring, please feel free to open an issue. Even if you think it's a stupid question, I'm happy to help :)
 
 Make sure [Docker](https://www.docker.com/) is installed on your system. If not, you can install it for
 Ubuntu-based distributions using:
