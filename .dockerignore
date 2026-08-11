@@ -1,0 +1,18 @@
+# Docker only reads .dockerignore from the build context root, so all
+# exclusions for every stage have to live in this file.
+
+# Node
+**/node_modules
+**/dist
+
+# .NET
+**/bin
+**/obj
+
+# VCS / IDE
+.git
+.gitignore
+.github
+.idea
+.vs
+*.user

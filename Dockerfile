@@ -19,11 +19,15 @@ RUN rm /build/appsettings.Development.json
 # Frontend
 #############
 
-FROM node:22 AS frontend-build
+FROM node:24 AS frontend-build
+
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
 
 WORKDIR /src
 COPY ./EchoPBX.Frontend/ .
-RUN rm -rf node_modules && npm install && npm run build -- --outDir /build
+RUN pnpm install --frozen-lockfile
+RUN pnpm run build --outDir /build
 
 #############
 # Final Stage

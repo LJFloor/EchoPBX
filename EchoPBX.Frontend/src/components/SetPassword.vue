@@ -6,7 +6,7 @@ import { Icon } from '@iconify/vue';
 const txtPassword = ref('');
 const txtConfirmPassword = ref('');
 const password = defineModel('password');
-const isValid = defineModel('valid', { default: false });
+const isValid = defineModel<boolean>('valid', { default: false });
 
 const hasLetter = computed(() => /[a-zA-Z]/.test(txtPassword.value));
 const hasNumber = computed(() => /[0-9]/.test(txtPassword.value));
