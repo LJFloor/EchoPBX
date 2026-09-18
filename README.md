@@ -45,17 +45,16 @@ If you need other protocols like IAX2, you can install FreePBX, which is very fe
 
 Maybe in the future when there is nothing to do. Let's just say that this isn't my priority right now.
 
-**So this is "just another frontend" for Asterisk?**
+**Do I have to use `--host` on the docker command**
 
-Yes and no. While EchoPBX does provide a web interface for managing Asterisk, it also aims to simplify the overall experience of setting up and managing a PBX.
-It's not just a web interface that replaces config files with bare textboxes. EchoPBX tries to guide you through it, explaining concepts,
-and providing sensible defaults. In the same way that Plex isn't just a fancy browser for your media files, but a whole lot of features (transcoding, metadata fetching, etc) to make your media experience better.
+When I tried to bind 5060 (SIP) and 8740 (Web interface) manually in `bridge` mode, some of my phones had trouble connecting to Asterisk. When they did connect, I wouldn't hear audio.
+`--host` works. I still have to figure this part out
+
+**So this is "just another frontend" for Asterisk?**
 
 When you typically make a front-end for an already existing backend, you tend to make it very close to the backend. Every key in the config file translates to a textbox or checkbox in the UI.
 This is not the case with EchoPBX. EchoPBX abstracts away many of the complexities of Asterisk.
 This might not be for everyone though, and I respect that. So if you want a more traditional approach, FreePBX is a great alternative.
-
-I hope this more clarifies my idea and vision, and why things like custom dialplan scripting are not available in EchoPBX.
 
 # Building
 
@@ -65,7 +64,7 @@ docker build -t echopbx .
 
 # Developing locally
 
-The easiest way to develop locally is not with docker, but to install the dependencies directly on your machine.
+The easiest way I found to develop locally is not with docker, but to install the dependencies directly on your machine.
 Because EchoPBX uses Asterisk, you will need to install and configure Asterisk first.
 
 Like said before, Asterisk only runs on Linux, so you will need a Linux machine or a Linux VM. Alternatively,
