@@ -319,7 +319,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 extensionLines.Add("");
             }
 
-            if (trunks.Length == 1)
+            if (trunks.Length > 0)
             {
                 extensionLines.Add(";=============================================");
                 extensionLines.Add("; Incoming Trunks");
@@ -330,9 +330,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 {
                     extensionLines.Add($"[from-trunk-{trunk.Id}]");
                     extensionLines.Add($"exten => _X.,1,NoOp(\"Incoming call on trunk {trunk.Name}\")");
-                    extensionLines.Add($" same => n,Set(LKUP=${{CURL(http://127.0.0.1:{Constants.HttpPort}/api/contacts/lookup?num=${{CALLERID(num)}})}})"); // This returns the Full name, or if not found an empty string
-                    extensionLines.Add(" same => n,Set(CALLERID(name)=${IF($[\"${LKUP}\" != \"\"]?${LKUP}:${CALLERID(name)})})");
 
+                    // Replace the caller's name with the matching contact, if there is one. The name
+                    // is only ever measured with LEN(), never placed inside an expression, since
+                    // quotes, colons or parentheses in it would break the expression.
+                    extensionLines.Add(" same => n,GotoIf($[${LEN(${CALLERID(num)})} = 0]?lookup_done)");
+                    extensionLines.Add($" same => n,Set(LKUP=${{CURL(http://127.0.0.1:{Constants.HttpPort}/api/contacts/lookup?num=${{CALLERID(num)}})}})"); // The contact's full name, or an empty string
+                    extensionLines.Add(" same => n,GotoIf($[${LEN(${LKUP})} = 0]?lookup_done)");
+                    extensionLines.Add(" same => n,Set(CALLERID(name)=${LKUP})");
+                    extensionLines.Add(" same => n(lookup_done),NoOp()");
 
                     if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToQueue && trunk.Queue != null)
                     {

@@ -19,11 +19,17 @@ public class ContactController(IContactSearchService contactSearchService, ILogg
     /// <param name="num">The phone number to resolve.</param>
     /// <remarks>The lookup is performed using the last 7 digits of the phone number to roughly match local numbers.</remarks>
     [HttpGet("lookup")]
-    public async Task<string> Resolve([FromQuery] string num)
+    public async Task<string> Resolve([FromQuery] string? num)
     {
         if (HttpContext.Connection.RemoteIpAddress == null || !IPAddress.IsLoopback(HttpContext.Connection.RemoteIpAddress))
         {
             HttpContext.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            return string.Empty;
+        }
+
+        // Callers without a number (withheld, or an internal test call) have nothing to match.
+        if (string.IsNullOrWhiteSpace(num))
+        {
             return string.Empty;
         }
 
