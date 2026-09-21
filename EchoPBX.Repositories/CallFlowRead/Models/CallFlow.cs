@@ -17,5 +17,11 @@ public class CallFlow
     /// </summary>
     public int Steps { get; set; }
 
+    /// <summary>
+    /// The names of the trunks that send their incoming calls to this flow. Only filled for a
+    /// single flow.
+    /// </summary>
+    public string[] Trunks { get; set; } = [];
+
     public CallFlowDefinition Definition { get; set; } = new();
 }

@@ -10,14 +10,7 @@ export interface Trunk {
     extensions: number[];
     queueId?: number;
     incomingCallBehaviour: IncomingCallBehaviour;
-    dtmfAnnouncement?: string;
-    dtmfMenuEntries: DtmfMenuEntry[];
-}
-
-export interface DtmfMenuEntry {
-    digit: number;
-    queueId: number;
-    label?: string;
+    callFlowId?: number | null;
 }
 
 export enum IncomingCallBehaviour {
@@ -25,5 +18,5 @@ export enum IncomingCallBehaviour {
     RingAllExtensions = 2,
     RingSpecificExtensions = 3,
     RingQueue = 4,
-    DtmfMenu = 5
+    SendToCallFlow = 6,
 }

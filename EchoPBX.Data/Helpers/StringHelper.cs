@@ -29,7 +29,7 @@ public static class StringHelper
     /// <summary>
     /// In goes the path to a sound file on disk, out comes the URL path to that sound file.
     /// </summary>
-    /// <example>/data/sounds/trunk-1/dtmf-announcement => /sounds/trunk-1/dtmf-accouncement.wav</example>
+    /// <example>/data/sounds/callflow-1/menu => /sounds/callflow-1/menu.wav</example>
     public static string BuildSoundUrl(string path)
     {
         var result = path.Replace(Constants.DataDirectory, "");

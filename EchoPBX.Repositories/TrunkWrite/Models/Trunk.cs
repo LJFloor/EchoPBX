@@ -24,16 +24,5 @@ public class Trunk
 
     public IncomingCallBehaviour IncomingCallBehaviour { get; set; }
 
-    /// <summary>
-    /// Data URL (base64) for new uploads, or existing file path to keep unchanged.
-    /// </summary>
-    public string? DtmfAnnouncement { get; set; }
-
-    public List<DtmfMenuEntryDto> DtmfMenuEntries { get; set; } = [];
-}
-
-public class DtmfMenuEntryDto
-{
-    public int Digit { get; set; }
-    public int QueueId { get; set; }
+    public int? CallFlowId { get; set; }
 }

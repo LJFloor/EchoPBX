@@ -78,6 +78,13 @@ public partial class CallFlowWriteRepository(EchoDbContext dbContext, IAsteriskW
 
     public async Task Delete(int id)
     {
+        // Same as deleting a queue: a trunk pointing at nothing would drop its calls silently.
+        await dbContext.Trunks
+            .Where(x => x.CallFlowId == id)
+            .ExecuteUpdateAsync(set => set
+                .SetProperty(x => x.IncomingCallBehaviour, IncomingCallBehaviour.Ignore)
+                .SetProperty(x => x.CallFlowId, (int?)null));
+
         var deleted = await dbContext.CallFlows.Where(x => x.Id == id).ExecuteDeleteAsync();
         if (deleted == 0)
         {
@@ -98,6 +105,48 @@ public partial class CallFlowWriteRepository(EchoDbContext dbContext, IAsteriskW
         }
 
         await asterisk.ApplyChanges();
+    }
+
+    public async Task MoveStraySounds()
+    {
+        var soundsRoot = Path.Combine(Constants.DataDirectory, "sounds");
+        var callFlows = await dbContext.CallFlows.ToArrayAsync();
+
+        foreach (var callFlow in callFlows)
+        {
+            var definition = CallFlowDefinition.Parse(callFlow.DefinitionJson);
+            var directory = SoundDirectory(callFlow.Id);
+            var moved = false;
+
+            foreach (var node in definition.Nodes.OfType<ISoundNode>())
+            {
+                if (node.Kind != SoundKind.Upload || string.IsNullOrEmpty(node.Sound)) continue;
+
+                var sourceDirectory = Path.GetDirectoryName(node.Sound)!;
+                var source = $"{node.Sound}.wav";
+                if (sourceDirectory == directory || !File.Exists(source)) continue;
+
+                Directory.CreateDirectory(directory);
+                var target = Path.Combine(directory, node.Id);
+                File.Move(source, $"{target}.wav", overwrite: true);
+                node.Sound = target;
+                moved = true;
+
+                // The trunk folders the DTMF menus used held nothing but the announcement.
+                if (sourceDirectory != soundsRoot && !Directory.EnumerateFileSystemEntries(sourceDirectory).Any())
+                {
+                    Directory.Delete(sourceDirectory);
+                }
+            }
+
+            if (moved)
+            {
+                callFlow.DefinitionJson = definition.Serialize();
+                Log.Logger.Information("Moved the sounds of call flow {CallFlowId} into its own folder", callFlow.Id);
+            }
+        }
+
+        await dbContext.SaveChangesAsync();
     }
 
     private static string SoundDirectory(int callFlowId) =>

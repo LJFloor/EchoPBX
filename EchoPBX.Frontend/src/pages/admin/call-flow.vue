@@ -22,9 +22,15 @@ const error = ref<string>();
 const testExtension = ref<Extension>();
 const isNew = computed(() => route.params.slug === 'new');
 
-const startSubtitle = computed(() => callFlow.value?.internalNumber
-    ? t('label.call-flow-trigger-number', callFlow.value.internalNumber)
-    : t('label.call-flow-trigger-test-only'));
+const startSubtitle = computed(() => {
+    const number = callFlow.value?.internalNumber;
+    const trunks = callFlow.value?.trunks?.join(', ');
+
+    if (trunks && number) return t('label.call-flow-trigger-trunks-and-number', trunks, number);
+    if (trunks) return t('label.call-flow-trigger-trunks', trunks);
+    if (number) return t('label.call-flow-trigger-number', number);
+    return t('label.call-flow-trigger-test-only');
+});
 
 onMounted(async () => {
     document.addEventListener('keydown', (e) => {

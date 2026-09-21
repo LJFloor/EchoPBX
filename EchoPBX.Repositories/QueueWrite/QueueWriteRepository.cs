@@ -69,26 +69,6 @@ public class QueueWriteRepository(EchoDbContext dbContext, IAsteriskWorker aster
                 set.SetProperty(x => x.IncomingCallBehaviour, IncomingCallBehaviour.Ignore)
             );
 
-        // Remove DTMF menu entries pointing to this queue
-        await dbContext.Set<DtmfMenuEntry>().Where(x => x.QueueId == id).ExecuteDeleteAsync();
-
-        // If a trunk with DtmfMenu behavior has no entries left, reset to Ignore
-        var affectedTrunkIds = await dbContext.Trunks
-            .Where(x => x.IncomingCallBehaviour == IncomingCallBehaviour.DtmfMenu)
-            .Where(x => !x.DtmfMenuEntries.Any())
-            .Select(x => x.Id)
-            .ToArrayAsync();
-
-        if (affectedTrunkIds.Length > 0)
-        {
-            await dbContext.Trunks
-                .Where(x => affectedTrunkIds.Contains(x.Id))
-                .ExecuteUpdateAsync(set =>
-                    set.SetProperty(x => x.IncomingCallBehaviour, IncomingCallBehaviour.Ignore)
-                       .SetProperty(x => x.DtmfAnnouncement, (string?)null)
-                );
-        }
-
         await dbContext.Set<QueueExtension>().Where(x => x.QueueId == id).ExecuteDeleteAsync();
         await dbContext.Queues.Where(x => x.Id == id).ExecuteDeleteAsync();
         await asterisk.ApplyChanges();

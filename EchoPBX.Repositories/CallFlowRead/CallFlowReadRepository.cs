@@ -76,6 +76,11 @@ public class CallFlowReadRepository(EchoDbContext dbContext) : ICallFlowReadRepo
             InternalNumber = callFlow.InternalNumber,
             Steps = definition.Nodes.Count(n => n is not StartNode),
             Definition = definition,
+            Trunks = await dbContext.Trunks
+                .Where(x => x.CallFlowId == callFlow.Id && x.IncomingCallBehaviour == IncomingCallBehaviour.SendToCallFlow)
+                .OrderBy(x => x.Name)
+                .Select(x => x.Name)
+                .ToArrayAsync(),
         };
     }
 }

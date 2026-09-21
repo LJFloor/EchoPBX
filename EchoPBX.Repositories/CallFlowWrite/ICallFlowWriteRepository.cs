@@ -17,4 +17,12 @@ public interface ICallFlowWriteRepository
     /// </summary>
     /// <param name="id">The ID of the call flow to delete.</param>
     Task Delete(int id);
+
+    /// <summary>
+    /// Moves uploaded sounds a flow uses from outside its own folder into it, so they are kept
+    /// and cleaned up like any other upload. Only the MoveDtmfMenusToCallFlows migration leaves
+    /// sounds elsewhere: it points each new flow at its trunk's announcement, since a migration
+    /// cannot move files. Safe to run at every startup.
+    /// </summary>
+    Task MoveStraySounds();
 }

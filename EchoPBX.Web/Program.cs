@@ -7,6 +7,7 @@ using EchoPBX.Data.Workers;
 using EchoPBX.Data.Workers.Asterisk;
 using EchoPBX.Data.Workers.Cdr;
 using EchoPBX.Repositories;
+using EchoPBX.Repositories.CallFlowWrite;
 using EchoPBX.Web.Authentication;
 using Microsoft.AspNetCore.WebSockets;
 using Microsoft.EntityFrameworkCore;
@@ -105,6 +106,8 @@ try
     {
         Log.Information("No pending migrations found.");
     }
+
+    await scope.ServiceProvider.GetRequiredService<ICallFlowWriteRepository>().MoveStraySounds();
 
     // Settings
     Log.Information("Loading settings");

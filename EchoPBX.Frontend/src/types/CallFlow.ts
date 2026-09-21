@@ -92,5 +92,9 @@ export interface CallFlow {
     name: string;
     internalNumber?: number | null;
     steps: number;
+
+    /** The trunks that send their incoming calls to this flow. */
+    trunks?: string[];
+
     definition: CallFlowDefinition;
 }

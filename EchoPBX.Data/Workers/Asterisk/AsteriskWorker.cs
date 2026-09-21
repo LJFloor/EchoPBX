@@ -218,12 +218,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     x.Queue.Announcement,
                     x.Queue.Name
                 },
-            x.DtmfAnnouncement,
-            DtmfMenuEntries = x.DtmfMenuEntries.Select(e => new
-            {
-                e.Digit,
-                e.QueueId
-            }).ToArray()
+            CallFlowSlug = x.CallFlow == null ? null : x.CallFlow.Slug,
         }).ToArrayAsync();
 
         var queues = await _dbContext.Queues.Select(x => new
@@ -358,63 +353,13 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     {
                         extensionLines.Add(" same => n,Dial(" + string.Join("&", extensions.Select(x => $"PJSIP/{x.ExtensionNumber}")) + ")");
                     }
-                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.DtmfMenu
-                             && trunk.DtmfMenuEntries.Length > 0
-                             && !string.IsNullOrEmpty(trunk.DtmfAnnouncement))
+                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToCallFlow && trunk.CallFlowSlug != null)
                     {
-                        // Jump to the dedicated DTMF menu context
-                        extensionLines.Add($" same => n,Goto(dtmf-trunk-{trunk.Id},s,1)");
+                        extensionLines.Add($" same => n,Goto({CallFlowDialplanBuilder.ContextName(trunk.CallFlowSlug)},s,1)");
                     }
 
                     extensionLines.Add(" same => n,Hangup()");
                     extensionLines.Add("");
-                }
-
-                // Generate DTMF menu contexts
-                var dtmfTrunks = trunks.Where(t =>
-                    t.IncomingCallBehaviour == IncomingCallBehaviour.DtmfMenu
-                    && t.DtmfMenuEntries.Length > 0
-                    && !string.IsNullOrEmpty(t.DtmfAnnouncement)).ToArray();
-
-                if (dtmfTrunks.Length > 0)
-                {
-                    extensionLines.Add(";=============================================");
-                    extensionLines.Add("; DTMF Menu Contexts");
-                    extensionLines.Add(";=============================================");
-                    extensionLines.Add("");
-
-                    foreach (var trunk in dtmfTrunks)
-                    {
-                        extensionLines.Add($"[dtmf-trunk-{trunk.Id}]");
-                        extensionLines.Add("exten => s,1,Answer()");
-                        extensionLines.Add(" same => n,Wait(1)");
-                        extensionLines.Add(" same => n,Set(__RETRIES=0)");
-
-                        if (!string.IsNullOrWhiteSpace(trunk.DtmfAnnouncement))
-                        {
-                            extensionLines.Add($" same => n(menu),Background({trunk.DtmfAnnouncement})");
-                        }
-
-                        extensionLines.Add(" same => n,WaitExten(5)");
-                        extensionLines.Add("");
-
-                        foreach (var entry in trunk.DtmfMenuEntries)
-                        {
-                            extensionLines.Add($"exten => {entry.Digit},1,Queue(queue-{entry.QueueId})");
-                            extensionLines.Add($"exten => {entry.Digit},n,Hangup()");
-                            extensionLines.Add("");
-                        }
-
-                        // Timeout handler - replay menu up to 3 times
-                        extensionLines.Add("exten => t,1,Set(__RETRIES=$[${RETRIES}+1])");
-                        extensionLines.Add(" same => n,GotoIf($[${RETRIES}<3]?s,menu)");
-                        extensionLines.Add(" same => n,Hangup()");
-                        extensionLines.Add("");
-
-                        // Invalid key handler - same as timeout
-                        extensionLines.Add("exten => i,1,Goto(t,1)");
-                        extensionLines.Add("");
-                    }
                 }
 
                 extensionLines.Add(";=============================================");

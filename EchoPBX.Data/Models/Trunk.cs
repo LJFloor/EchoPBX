@@ -28,11 +28,11 @@ public class Trunk
     public IncomingCallBehaviour IncomingCallBehaviour { get; set; } = IncomingCallBehaviour.RingAllExtensions;
 
     /// <summary>
-    /// Path to the DTMF menu announcement audio file (without .wav extension).
+    /// The flow incoming calls run through when <see cref="IncomingCallBehaviour"/> is
+    /// <see cref="IncomingCallBehaviour.SendToCallFlow"/>.
     /// </summary>
-    public string? DtmfAnnouncement { get; set; }
-
-    public List<DtmfMenuEntry> DtmfMenuEntries { get; set; } = [];
+    public int? CallFlowId { get; set; }
+    public CallFlow? CallFlow { get; set; }
 }
 
 public enum IncomingCallBehaviour
@@ -41,5 +41,9 @@ public enum IncomingCallBehaviour
     RingAllExtensions = 2,
     RingSpecificExtensions = 3,
     SendToQueue = 4,
-    DtmfMenu = 5
+
+    // 5 was a DTMF menu that transferred to queues. Those are call flows now, see the
+    // MoveDtmfMenusToCallFlows migration.
+
+    SendToCallFlow = 6,
 }
