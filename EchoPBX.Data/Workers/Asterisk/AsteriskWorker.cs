@@ -5,6 +5,7 @@ using EchoPBX.Data.Clients.Ami.Models;
 using EchoPBX.Data.Dto;
 using EchoPBX.Data.Models;
 using EchoPBX.Data.Services.Asterisk.Models;
+using EchoPBX.Data.Services.CallFlows;
 using EchoPBX.Data.Services.ContactSearch;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -246,6 +247,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 }).ToArray()
         }).ToArrayAsync();
 
+        var callFlows = await _dbContext.CallFlows.Select(x => new
+        {
+            x.Id,
+            x.Slug,
+            x.Name,
+            x.InternalNumber,
+            x.DefinitionJson,
+        }).ToArrayAsync();
+
         #endregion
 
         await WriteAmi();
@@ -271,6 +281,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 "",
             };
 
+            // Entry points for the "test call" button, mirroring how queues are reached.
+            foreach (var callFlow in callFlows)
+            {
+                var context = CallFlowDialplanBuilder.ContextName(callFlow.Slug);
+                extensionLines.Add($"exten => {context},1,Goto({context},s,1)");
+            }
+
+            if (callFlows.Length > 0) extensionLines.Add("");
+
             foreach (var queue in queues)
             {
                 extensionLines.Add("exten => queue-" + queue.Id + ",1,Answer()");
@@ -294,6 +313,14 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 extensionLines.Add($"exten => {ext.ExtensionNumber},1,NoOp(\"Call to extension {ext.ExtensionNumber}\")");
                 extensionLines.Add($" same => n,Dial(PJSIP/{ext.ExtensionNumber})");
                 extensionLines.Add(" same => n,Hangup()");
+                extensionLines.Add("");
+            }
+
+            foreach (var callFlow in callFlows.Where(x => x.InternalNumber != null))
+            {
+                var context = CallFlowDialplanBuilder.ContextName(callFlow.Slug);
+                extensionLines.Add($"exten => {callFlow.InternalNumber},1,NoOp(\"Call to call flow {callFlow.Slug}\")");
+                extensionLines.Add($" same => n,Goto({context},s,1)");
                 extensionLines.Add("");
             }
 
@@ -420,6 +447,17 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     extensionLines.Add("include => out-trunk-" + trunk.Id);
                     extensionLines.Add("");
                 }
+            }
+
+            var queueIds = queues.Select(x => x.Id).ToHashSet();
+            foreach (var callFlow in callFlows)
+            {
+                extensionLines.AddRange(CallFlowDialplanBuilder.Build(
+                    callFlow.Id,
+                    callFlow.Slug,
+                    callFlow.Name,
+                    CallFlowDefinition.Parse(callFlow.DefinitionJson),
+                    queueIds));
             }
 
             const string extensionsFilePath = $"{AsteriskConfigPath}/extensions.conf";

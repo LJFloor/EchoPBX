@@ -16,6 +16,8 @@ public static class ServiceBuilderExtension
         services.AddScoped<QueueRead.IQueueReadRepository, QueueRead.QueueReadRepository>();
         services.AddScoped<QueueWrite.IQueueWriteRepository, QueueWrite.QueueWriteRepository>();
         services.AddScoped<CdrRead.ICdrReadRepository, CdrRead.CdrReadRepository>();
+        services.AddScoped<CallFlowRead.ICallFlowReadRepository, CallFlowRead.CallFlowReadRepository>();
+        services.AddScoped<CallFlowWrite.ICallFlowWriteRepository, CallFlowWrite.CallFlowWriteRepository>();
         
         return services;
     }

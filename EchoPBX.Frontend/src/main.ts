@@ -25,6 +25,8 @@ const router = createRouter({
         { path: '/admin/trunks/:trunkId', component: () => import('./pages/admin/trunk.vue') },
         { path: '/admin/queues', component: () => import('./pages/admin/queues.vue') },
         { path: '/admin/queues/:queueId', component: () => import('./pages/admin/queue.vue') },
+        { path: '/admin/call-flows', component: () => import('./pages/admin/call-flows.vue') },
+        { path: '/admin/call-flows/:slug', component: () => import('./pages/admin/call-flow.vue') },
     ],
 });
 

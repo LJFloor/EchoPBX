@@ -23,6 +23,8 @@ public class EchoDbContext : DbContext
 
     public DbSet<DtmfMenuEntry> DtmfMenuEntries { get; set; }
 
+    public DbSet<CallFlow> CallFlows { get; set; }
+
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -61,6 +63,8 @@ public class EchoDbContext : DbContext
             .WithMany()
             .HasForeignKey(x => x.QueueId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CallFlow>().HasIndex(x => x.Slug).IsUnique();
 
         modelBuilder.Entity<SystemSetting>().HasKey(x => x.Name);
         modelBuilder.Entity<SystemSetting>().HasData([
