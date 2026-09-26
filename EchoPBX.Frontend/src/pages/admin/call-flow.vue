@@ -10,9 +10,12 @@ import AdminLayout from '~/layouts/AdminLayout.vue';
 import type { CallFlow } from '~/types/CallFlow';
 import type { Extension } from '~/types/Extension';
 import { useTranslation } from '~/composables/useTranslation';
+import { useEscape } from '~/composables/useEscape';
 
 const route = useRoute();
 const router = useRouter();
+
+useEscape(() => router.push('/admin/call-flows'));
 const { t } = useTranslation();
 
 const callFlow = ref<CallFlow>();
@@ -33,12 +36,6 @@ const startSubtitle = computed(() => {
 });
 
 onMounted(async () => {
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            router.push('/admin/call-flows');
-        }
-    }, { once: true });
-
     fetch('/api/extensions')
         .then(res => res.json())
         .then(data => {

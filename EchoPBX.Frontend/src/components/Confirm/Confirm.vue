@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import Btn from '~/components/Button/Btn.vue';
 import { useTranslation } from '~/composables/useTranslation';
+import { pushEscapeHandler } from '~/composables/useEscape';
 
 const { t } = useTranslation();
 
@@ -19,16 +20,13 @@ async function execute(): Promise<boolean> {
     answer.value = null;
     isOpen.value = true;
 
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && isOpen.value) {
-            answer.value = false;
-        }
-    }, { once: true });
+    const removeEscapeHandler = pushEscapeHandler(() => answer.value = false);
 
     while (answer.value === null) {
         await new Promise(resolve => setTimeout(resolve, 50));
     }
 
+    removeEscapeHandler();
     isOpen.value = false;
     return answer.value;
 }

@@ -9,12 +9,15 @@ import type { Trunk } from '~/types/Trunk';
 import RadioButton from '~/components/Radio/RadioButton.vue';
 import { Icon } from '@iconify/vue';
 import { useTranslation } from '~/composables/useTranslation';
+import { useEscape } from '~/composables/useEscape';
 import { generateStr } from '~/helper/stringHelper';
 import AdminLayout from '~/layouts/AdminLayout.vue';
 import { useMemo } from '~/composables/useMemo';
 
 const route = useRoute();
 const router = useRouter();
+
+useEscape(() => router.push('/admin/extensions'));
 const { t } = useTranslation();
 
 const extension = ref<Extension>();
@@ -22,12 +25,6 @@ const trunks = useMemo<Trunk[]>('trunks', () => []);
 const isSaving = ref(false);
 
 onMounted(async () => {
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            router.push('/admin/extensions');
-        }
-    }, { once: true });
-
     fetch(`/api/trunks`)
         .then(res => res.json())
         .then(data => {

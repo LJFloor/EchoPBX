@@ -14,10 +14,13 @@ import type { Queue } from '~/types/Queue';
 import type { CallFlow } from '~/types/CallFlow';
 import AdminLayout from '~/layouts/AdminLayout.vue';
 import { useTranslation } from '~/composables/useTranslation';
+import { useEscape } from '~/composables/useEscape';
 import { useMemo } from '~/composables/useMemo';
 
 const route = useRoute();
 const router = useRouter();
+
+useEscape(() => router.push('/admin/trunks'));
 const { t } = useTranslation();
 
 const trunk = ref<Trunk>();
@@ -27,12 +30,6 @@ const callFlows = useMemo<CallFlow[]>('call-flows', () => []);
 const isSaving = ref(false);
 
 onMounted(async () => {
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            router.push('/admin/trunks');
-        }
-    }, { once: true });
-
     await fetch(`/api/extensions`)
         .then(res => res.json())
         .then(data => {

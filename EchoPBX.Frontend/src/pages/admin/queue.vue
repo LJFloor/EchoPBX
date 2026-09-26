@@ -11,9 +11,12 @@ import FileInput from '~/components/Input/FileInput.vue';
 import ExtensionList from '~/components/ExtensionList.vue';
 import AdminLayout from '~/layouts/AdminLayout.vue';
 import { useTranslation } from '~/composables/useTranslation';
+import { useEscape } from '~/composables/useEscape';
 
 const route = useRoute();
 const router = useRouter();
+
+useEscape(() => router.push('/admin/queues'));
 const { t } = useTranslation();
 
 const queue = ref<Queue>();
@@ -21,12 +24,6 @@ const extensions = ref<Extension[]>();
 const isSaving = ref(false);
 
 onMounted(async () => {
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            router.push('/admin/queues');
-        }
-    }, { once: true });
-
     fetch('/api/extensions')
         .then(res => res.json())
         .then(data => {

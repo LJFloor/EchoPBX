@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
+import { useEscape } from '~/composables/useEscape';
 
 defineProps<{
     title: string;
@@ -8,6 +9,8 @@ defineProps<{
 const emit = defineEmits<{
     (e: 'close'): void;
 }>();
+
+useEscape(() => emit('close'));
 </script>
 
 <template>
