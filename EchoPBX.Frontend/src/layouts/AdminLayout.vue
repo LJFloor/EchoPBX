@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { ref } from 'vue';
 import Btn from '~/components/Button/Btn.vue';
 import Modal from '~/components/Modal/Modal.vue';
 import NavButton from '~/components/NavButton.vue';
@@ -12,18 +12,10 @@ const props = withDefaults(defineProps<{
     padding: true,
 });
 
-const username = ref('');
 const newPassword = ref('');
 const changePasswordModalOpen = ref(false);
 const changePasswordValid = ref(false);
 const changePasswordLoading = ref(false);
-
-function setUsername() {
-    const cookieUsername = document.cookie.split('; ').find(row => row.startsWith('echopbx_username='));
-    if (cookieUsername) {
-        username.value = cookieUsername.split('=')[1] || '';
-    }
-}
 
 function closeChangePasswordModal() {
     changePasswordModalOpen.value = false;
@@ -69,11 +61,6 @@ async function logout() {
         alert('Logout failed');
     }
 }
-
-onMounted(() => {
-    setUsername(); 
-    setInterval(setUsername, 1000);
-});
 
 const { t } = useTranslation();
 </script>

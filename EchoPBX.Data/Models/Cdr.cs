@@ -11,6 +11,7 @@ public class Cdr
     /// <summary>
     /// Caller ID
     /// </summary>
+    /// <example>"Ronaldo" &lt;202&gt;</example>
     [MaxLength(80)]
     public required string Clid { get; set; }
 
@@ -38,7 +39,7 @@ public class Cdr
     /// <summary>
     /// Channel name
     /// </summary>
-    /// <example>"Ronaldo" &lt;202&gt;</example>
+    /// <example>PJSIP/202-00000001</example>
     [MaxLength(80)]
     public required string ChannelName { get; set; }
 

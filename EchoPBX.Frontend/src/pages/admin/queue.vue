@@ -11,22 +11,20 @@ import FileInput from '~/components/Input/FileInput.vue';
 import ExtensionList from '~/components/ExtensionList.vue';
 import AdminLayout from '~/layouts/AdminLayout.vue';
 import { useTranslation } from '~/composables/useTranslation';
+import { useEscape } from '~/composables/useEscape';
 
 const route = useRoute();
 const router = useRouter();
+
+useEscape(() => router.push('/admin/queues'));
 const { t } = useTranslation();
 
 const queue = ref<Queue>();
 const extensions = ref<Extension[]>();
 const isSaving = ref(false);
+const error = ref<string>();
 
 onMounted(async () => {
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            router.push('/admin/queues');
-        }
-    }, { once: true });
-
     fetch('/api/extensions')
         .then(res => res.json())
         .then(data => {
@@ -42,7 +40,7 @@ onMounted(async () => {
             timeout: 30,
             wrapUpTime: 0,
             id: undefined!,
-            maxlength: 0,
+            maxLength: 0,
             retryInterval: 0,
             musicOnHold: [],
         };
@@ -64,7 +62,8 @@ async function save() {
     if (!queue.value) return;
 
     isSaving.value = true;
-    await fetch(`/api/queues`, {
+    error.value = undefined;
+    const response = await fetch(`/api/queues`, {
         method: route.params.queueId === 'new' ? 'POST' : 'PUT',
         headers: {
             'Content-Type': 'application/json'
@@ -73,6 +72,14 @@ async function save() {
     });
 
     isSaving.value = false;
+
+    if (!response.ok) {
+        // A 4xx carries a message meant for the user, a 5xx only a stack trace at best
+        const message = response.status < 500 ? await response.text() : '';
+        error.value = message || t('message.something-went-wrong');
+        return;
+    }
+
     router.push('/admin/queues');
 }
 </script>
@@ -84,6 +91,11 @@ async function save() {
                 <Btn @click="router.push('/admin/queues')" design="secondary" :label="t('button.cancel')" />
                 <Btn type="submit" :loading="isSaving" design="primary" :label="t('button.save')" />
             </div>
+
+            <div v-if="error" class="bg-red-50 border border-red-300 text-red-700 rounded px-4 py-2">
+                {{ error }}
+            </div>
+
             <Card>
                 <div class="p-4">
                     <div class="grid grid-cols-2 gap-4">
@@ -100,7 +112,7 @@ async function save() {
                         <Textbox type="number" v-model.number="queue.wrapUpTime" />
 
                         <div class="h-8 flex items-center">{{ t('label.maximum-size') }}:</div>
-                        <Textbox type="number" v-model.number="queue.maxlength" />
+                        <Textbox type="number" v-model.number="queue.maxLength" />
 
                         <div class="h-8 flex items-center">{{ t('label.announcement') }}:</div>
                         <div class="space-y-2">

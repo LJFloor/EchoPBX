@@ -14,10 +14,13 @@ import type { Queue } from '~/types/Queue';
 import type { CallFlow } from '~/types/CallFlow';
 import AdminLayout from '~/layouts/AdminLayout.vue';
 import { useTranslation } from '~/composables/useTranslation';
+import { useEscape } from '~/composables/useEscape';
 import { useMemo } from '~/composables/useMemo';
 
 const route = useRoute();
 const router = useRouter();
+
+useEscape(() => router.push('/admin/trunks'));
 const { t } = useTranslation();
 
 const trunk = ref<Trunk>();
@@ -25,14 +28,9 @@ const extensions = useMemo<Extension[]>('extensions', () => []);
 const queues = useMemo<Queue[]>('queues', () => []);
 const callFlows = useMemo<CallFlow[]>('call-flows', () => []);
 const isSaving = ref(false);
+const error = ref<string>();
 
 onMounted(async () => {
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            router.push('/admin/trunks');
-        }
-    }, { once: true });
-
     await fetch(`/api/extensions`)
         .then(res => res.json())
         .then(data => {
@@ -83,7 +81,8 @@ async function save() {
     if (!trunk.value) return;
 
     isSaving.value = true;
-    await fetch(`/api/trunks`, {
+    error.value = undefined;
+    const response = await fetch(`/api/trunks`, {
         method: route.params.trunkId === 'new' ? 'POST' : 'PUT',
         headers: {
             'Content-Type': 'application/json'
@@ -92,6 +91,14 @@ async function save() {
     });
 
     isSaving.value = false;
+
+    if (!response.ok) {
+        // A 4xx carries a message meant for the user, a 5xx only a stack trace at best
+        const message = response.status < 500 ? await response.text() : '';
+        error.value = message || t('message.something-went-wrong');
+        return;
+    }
+
     router.push('/admin/trunks');
 }
 </script>
@@ -100,9 +107,14 @@ async function save() {
     <AdminLayout>
         <form @submit.prevent="save" v-if="trunk" class="space-y-2">
             <div class="flex justify-end gap-2">
-                <Btn @click="router.push('/admin/trunks')" design="secondary" label="Annuleren" />
-                <Btn type="submit" :loading="isSaving" design="primary" label="Opslaan" />
+                <Btn @click="router.push('/admin/trunks')" design="secondary" :label="t('button.cancel')" />
+                <Btn type="submit" :loading="isSaving" design="primary" :label="t('button.save')" />
             </div>
+
+            <div v-if="error" class="bg-red-50 border border-red-300 text-red-700 rounded px-4 py-2">
+                {{ error }}
+            </div>
+
             <Card>
                 <div class="p-4">
                     <div class="grid grid-cols-2 gap-4">

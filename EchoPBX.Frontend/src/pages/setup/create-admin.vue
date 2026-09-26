@@ -6,6 +6,9 @@ import Btn from '~/components/Button/Btn.vue';
 import Textbox from '~/components/Input/Textbox.vue';
 import { useLocalStorage } from '~/composables/useLocalStorage';
 import SetupLayout from '~/layouts/SetupLayout.vue';
+import { useTranslation } from '~/composables/useTranslation';
+
+const { t } = useTranslation();
 
 const router = useRouter();
 
@@ -93,20 +96,19 @@ watch([username, password, confirmPassword], validate, { immediate: true });
 </script>
 
 <template>
-    <SetupLayout title="Creating an Admin user">
+    <SetupLayout :title="t('setup.admin-title')">
         <p>
-            Please create the initial admin user. You will use this account to log in to the administration panel, not
-            for making calls.
+            {{ t('setup.admin-intro') }}
         </p>
 
         <div class="grid grid-cols-2 gap-4">
-            <div>Username:</div>
+            <div>{{ t('label.username') }}:</div>
             <Textbox required v-model="username" />
 
-            <div>Password:</div>
+            <div>{{ t('label.password') }}:</div>
             <Textbox required type="password" v-model="password" />
 
-            <div>Confirm Password:</div>
+            <div>{{ t('password.confirm') }}:</div>
             <Textbox required type="password" v-model="confirmPassword" />
 
             <div></div>
@@ -114,24 +116,24 @@ watch([username, password, confirmPassword], validate, { immediate: true });
                 <ul class="list-inside">
                     <li :class="hasLetter ? 'text-green-600' : 'text-red-600'">
                         <Icon :icon="hasLetter ? 'mdi:check' : 'mdi:close'" class="inline size-4 mr-1" />
-                        At least one letter
+                        {{ t('password.rule-letter') }}
                     </li>
                     <li :class="hasNumber ? 'text-green-600' : 'text-red-600'">
                         <Icon :icon="hasNumber ? 'mdi:check' : 'mdi:close'" class="inline size-4 mr-1" />
-                        At least one number
+                        {{ t('password.rule-number') }}
                     </li>
                     <li :class="hasSpecialChar ? 'text-green-600' : 'text-red-600'">
                         <Icon :icon="hasSpecialChar ? 'mdi:check' : 'mdi:close'" class="inline size-4 mr-1" />
-                        At least one special character (e.g., !@#$%)
+                        {{ t('password.rule-special-char') }}
                     </li>
                     <li :class="isMinLength ? 'text-green-600' : 'text-red-600'">
                         <Icon :icon="isMinLength ? 'mdi:check' : 'mdi:close'" class="inline size-4 mr-1" />
-                        Minimum length of 10 characters
+                        {{ t('password.rule-min-length') }}
                     </li>
                     <li :class="password === confirmPassword ? 'text-green-600' : 'text-red-600'">
                         <Icon :icon="password === confirmPassword ? 'mdi:check' : 'mdi:close'"
                             class="inline size-4 mr-1" />
-                        Passwords match
+                        {{ t('password.rule-match') }}
                     </li>
                 </ul>
             </div>
@@ -139,7 +141,7 @@ watch([username, password, confirmPassword], validate, { immediate: true });
 
 
         <template #footer>
-            <Btn type="submit" label="Next" :loading="loading" :disabled="!isValid" @click="setup" />
+            <Btn type="submit" :label="t('button.next')" :loading="loading" :disabled="!isValid" @click="setup" />
         </template>
     </SetupLayout>
 </template>

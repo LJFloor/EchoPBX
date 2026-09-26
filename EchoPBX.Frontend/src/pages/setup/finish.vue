@@ -2,21 +2,24 @@
 import { useRouter } from 'vue-router';
 import Btn from '~/components/Button/Btn.vue';
 import SetupLayout from '~/layouts/SetupLayout.vue';
+import { useTranslation } from '~/composables/useTranslation';
+
+const { t } = useTranslation();
 
 const router = useRouter();
 </script>
 
 <template>
-    <SetupLayout title="Setup is complete">
+    <SetupLayout :title="t('setup.finish-title')">
         <p>
-            You're all set! The setup is complete.
+            {{ t('setup.finish-done') }}
         </p>
         <p>
-            You can now proceed to the dashboard to start configuring your EchoPBX instance.
+            {{ t('setup.finish-next') }}
         </p>
 
         <template #footer>
-            <Btn label="Go to dashboard" @click="router.push('/admin/dashboard')" />
+            <Btn :label="t('setup.go-to-dashboard')" @click="router.push('/admin/dashboard')" />
         </template>
     </SetupLayout>
 </template> 

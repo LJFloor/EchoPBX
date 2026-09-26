@@ -9,25 +9,23 @@ import type { Trunk } from '~/types/Trunk';
 import RadioButton from '~/components/Radio/RadioButton.vue';
 import { Icon } from '@iconify/vue';
 import { useTranslation } from '~/composables/useTranslation';
+import { useEscape } from '~/composables/useEscape';
 import { generateStr } from '~/helper/stringHelper';
 import AdminLayout from '~/layouts/AdminLayout.vue';
 import { useMemo } from '~/composables/useMemo';
 
 const route = useRoute();
 const router = useRouter();
+
+useEscape(() => router.push('/admin/extensions'));
 const { t } = useTranslation();
 
 const extension = ref<Extension>();
 const trunks = useMemo<Trunk[]>('trunks', () => []);
 const isSaving = ref(false);
+const error = ref<string>();
 
 onMounted(async () => {
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            router.push('/admin/extensions');
-        }
-    }, { once: true });
-
     fetch(`/api/trunks`)
         .then(res => res.json())
         .then(data => {
@@ -40,6 +38,7 @@ onMounted(async () => {
             extensionNumber: null!,
             password: generateStr(),
             displayName: '',
+            maxDevices: 5,
             connected: false,
             outgoingTrunkId: null,
         };
@@ -55,7 +54,8 @@ async function save() {
     if (!extension.value) return;
 
     isSaving.value = true;
-    await fetch(`/api/extensions`, {
+    error.value = undefined;
+    const response = await fetch(`/api/extensions`, {
         method: route.params.extensionNumber === 'new' ? 'POST' : 'PUT',
         headers: {
             'Content-Type': 'application/json'
@@ -64,6 +64,14 @@ async function save() {
     });
 
     isSaving.value = false;
+
+    if (!response.ok) {
+        // A 4xx carries a message meant for the user, a 5xx only a stack trace at best
+        const message = response.status < 500 ? await response.text() : '';
+        error.value = message || t('message.something-went-wrong');
+        return;
+    }
+
     router.push('/admin/extensions');
 }
 </script>
@@ -75,6 +83,11 @@ async function save() {
                 <Btn @click="router.push('/admin/extensions')" design="secondary" :label="t('button.cancel')" />
                 <Btn type="submit" :loading="isSaving" design="primary" :label="t('button.save')" />
             </div>
+
+            <div v-if="error" class="bg-red-50 border border-red-300 text-red-700 rounded px-4 py-2">
+                {{ error }}
+            </div>
+
             <Card>
                 <h2 class="text-lg font-medium">{{ t('label.general') }}</h2>
                 <p>{{ t('label.extension-general-description') }}</p>
@@ -88,6 +101,9 @@ async function save() {
 
                     <div class="h-8 flex items-center">{{ t('label.name') }}:</div>
                     <Textbox :maxlength="15" v-model="extension.displayName" type="text" />
+
+                    <div class="font-semibold h-8 flex items-center">{{ t('label.max-devices') }}:</div>
+                    <Textbox :required="true" v-model="extension.maxDevices" type="number" />
 
                     <div class="h-8 flex items-center">{{ t('label.outgoing-trunk') }}:</div>
                     <div>

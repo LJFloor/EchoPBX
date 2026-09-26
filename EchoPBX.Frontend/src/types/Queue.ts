@@ -3,7 +3,7 @@ export interface Queue {
     name: string;
     strategy: string;
     timeout: number;
-    maxlength: number;
+    maxLength: number;
     wrapUpTime: number;
     retryInterval: number;
     musicOnHold: string[];

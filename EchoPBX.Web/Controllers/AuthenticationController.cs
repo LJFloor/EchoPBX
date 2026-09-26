@@ -49,6 +49,8 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
             return Unauthorized("Invalid username or password");
         }
 
+        LoginAttempts.TryRemove(ipAddress, out _);
+
         var token = StringHelper.GenerateRandomString(128);
         var expiresAt = DateTimeOffset.UtcNow.AddHours(24).ToUnixTimeSeconds();
         dbContext.Add(new AccessToken
@@ -72,6 +74,7 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
         if (token != null)
         {
             await dbContext.AccessTokens.Where(x => x.Token == token).ExecuteDeleteAsync();
+            AuthenticationMiddleware.InvalidateToken(token);
         }
 
         HttpContext.Response.Cookies.Delete(AuthenticationMiddleware.TokenCookieName);
@@ -93,6 +96,18 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
         await dbContext.Admins.Where(x => x.Id == adminId).ExecuteUpdateAsync(set => set
             .SetProperty(x => x.PasswordHash, hashed)
         );
+
+        // Sign out every other session, since whoever else holds a token may be why the password changed
+        var otherTokens = await dbContext.AccessTokens
+            .Where(x => x.AdminId == adminId && x.Token != token)
+            .Select(x => x.Token)
+            .ToArrayAsync();
+
+        await dbContext.AccessTokens.Where(x => otherTokens.Contains(x.Token)).ExecuteDeleteAsync();
+        foreach (var otherToken in otherTokens)
+        {
+            AuthenticationMiddleware.InvalidateToken(otherToken);
+        }
 
         return Ok("Password changed successfully");
     }

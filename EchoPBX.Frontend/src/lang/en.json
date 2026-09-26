@@ -57,9 +57,19 @@
     "new-extension": "New extension",
     "ongoing-calls": "Ongoing calls",
     "no-ongoing-calls": "There are no ongoing calls at the moment",
+    "recent-calls": "Recent calls",
+    "no-recent-calls": "No calls have been made yet",
+    "identify-description": "Rings the extension for a few seconds, so you can identify the phone it is connected to.",
+    "time": "Time",
+    "from": "From",
+    "to": "To",
+    "answered": "Answered",
+    "not-answered": "Not answered",
+    "busy": "Busy",
     "table-live-data": "The data in this table is live",
     "incoming": "Incoming",
     "outgoing": "Outgoing",
+    "internal": "Internal",
     "new-queue": "New queue",
     "strategy": "Strategy",
     "timeout-for-extension-seconds": "Extension timeout",
@@ -151,7 +161,9 @@
     "logout": "Logout",
     "change-password": "Change password",
     "add-step": "Add a step",
-    "test-call": "Test call"
+    "test-call": "Test call",
+    "identify": "Identify",
+    "add-extension": "Add extension"
   },
   "message": {
     "delete-extension-confirmation": "Are you sure you want to delete this extension?",
@@ -159,6 +171,38 @@
     "delete-queue-confirmation": "Are you sure you want to delete this queue?",
     "delete-trunk-confirmation": "Are you sure you want to delete this trunk?",
     "delete-call-flow-confirmation": "Are you sure you want to delete this call flow?",
-    "something-went-wrong": "Something went wrong. Please try again."
+    "something-went-wrong": "Something went wrong. Please try again.",
+    "confirm-action": "Are you sure you want to do this?",
+    "invalid-login": "Invalid username or password."
+  },
+  "login": {
+    "welcome": "Welcome!",
+    "intro": "Enter your username and password to sign in to the administration panel."
+  },
+  "password": {
+    "confirm": "Confirm password",
+    "rule-letter": "At least one letter",
+    "rule-number": "At least one number",
+    "rule-special-char": "At least one special character (e.g., !@#$%)",
+    "rule-min-length": "Minimum length of 10 characters",
+    "rule-match": "Passwords match"
+  },
+  "setup": {
+    "welcome-title": "Welcome to EchoPBX!",
+    "welcome-thanks": "Hi! Thank you for trying out EchoPBX.",
+    "welcome-intro": "You got through the docker installation part, so let's set up the initial configuration. Click \"Next\" to continue.",
+    "beta-notice": "Please note that EchoPBX is still in BETA!",
+    "beta-feedback": "New features are being added, and new bugs may be introduced. Your feedback is very much appreciated!",
+    "report-issues": "Report issues or suggest features on GitHub",
+    "license-title": "License agreement",
+    "license-intro": "Please accept the license agreement to continue the setup.",
+    "license-loading": "Loading license text...",
+    "license-accept": "I accept the license agreement",
+    "admin-title": "Creating an Admin user",
+    "admin-intro": "Please create the initial admin user. You will use this account to log in to the administration panel, not for making calls.",
+    "finish-title": "Setup is complete",
+    "finish-done": "You're all set! The setup is complete.",
+    "finish-next": "You can now proceed to the dashboard to start configuring your EchoPBX instance.",
+    "go-to-dashboard": "Go to dashboard"
   }
 }

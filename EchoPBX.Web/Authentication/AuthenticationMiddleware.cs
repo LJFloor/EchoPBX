@@ -70,7 +70,17 @@ public class AuthenticationMiddleware : IMiddleware
                 AbsoluteExpiration = DateTimeOffset.FromUnixTimeSeconds(accessToken.ExpiresAt)
             };
 
+            TokenCache.Set(token, accessToken.AdminId, cacheEntryOptions);
             context.Items["AdminId"] = accessToken.AdminId;
         }
+    }
+
+    /// <summary>
+    /// Forget a token, so a request carrying it is checked against the database again.
+    /// Call this whenever a token is deleted.
+    /// </summary>
+    public static void InvalidateToken(string token)
+    {
+        TokenCache.Remove(token);
     }
 }

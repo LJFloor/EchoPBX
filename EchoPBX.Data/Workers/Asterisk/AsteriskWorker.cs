@@ -7,6 +7,7 @@ using EchoPBX.Data.Models;
 using EchoPBX.Data.Services.Asterisk.Models;
 using EchoPBX.Data.Services.CallFlows;
 using EchoPBX.Data.Services.ContactSearch;
+using EchoPBX.Data.Services.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -15,12 +16,18 @@ namespace EchoPBX.Data.Workers.Asterisk;
 
 public partial class AsteriskWorker : IAsteriskWorker, IWorker
 {
-    private readonly EchoDbContext _dbContext;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AsteriskWorker> _logger;
     private readonly IAmiClient _amiClient;
     private readonly Process _asteriskProcess;
     private bool _asteriskStarted;
-    private readonly IContactSearchService _contactSearchService;
+    private readonly CancellationTokenSource _monitorCts = new();
+
+    /// <summary>
+    /// Keeps two requests from writing the configuration files at the same time.
+    /// </summary>
+    private readonly SemaphoreSlim _configurationLock = new(1, 1);
+    private readonly ISettingsService _settingsService;
 
     /// <summary>
     /// Full path to the asterisk executable
@@ -36,7 +43,19 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     public bool IsReady { get; private set; } = false;
 
     /// <inheritdoc/>
-    public List<OngoingCall> OngoingCalls { get; private set; } = [];
+    public List<OngoingCall> OngoingCalls
+    {
+        get
+        {
+            lock (_ongoingCalls) return [.._ongoingCalls];
+        }
+    }
+
+    /// <summary>
+    /// Only the AMI loop changes this list, but requests read it, so every access is locked and
+    /// the outside world only ever gets a copy.
+    /// </summary>
+    private readonly List<OngoingCall> _ongoingCalls = [];
 
     /// <inheritdoc/>
     public event EventHandler<List<OngoingCall>>? OngoingCallsUpdated;
@@ -53,11 +72,13 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             throw new DirectoryNotFoundException($"Asterisk config directory not found! ({AsteriskConfigPath})");
         }
 
+        // This worker is a singleton used from several threads at once, so every piece of work gets
+        // its own scope and DbContext instead of sharing one
+        _scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         var scope = serviceProvider.CreateScope();
-        _dbContext = scope.ServiceProvider.GetRequiredService<EchoDbContext>();
         _logger = scope.ServiceProvider.GetRequiredService<ILogger<AsteriskWorker>>();
         _amiClient = scope.ServiceProvider.GetRequiredService<IAmiClient>();
-        _contactSearchService = scope.ServiceProvider.GetRequiredService<IContactSearchService>();
+        _settingsService = serviceProvider.GetRequiredService<ISettingsService>();
         _asteriskProcess = new Process
         {
             StartInfo = new ProcessStartInfo(AsteriskPath, "-f")
@@ -91,7 +112,10 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 RedirectStandardError = true,
             };
             stopCommand.Start();
+            var stopOutput = stopCommand.StandardOutput.ReadToEndAsync(stoppingToken);
+            var stopError = stopCommand.StandardError.ReadToEndAsync(stoppingToken);
             await stopCommand.WaitForExitAsync(stoppingToken);
+            await Task.WhenAll(stopOutput, stopError);
 
             _logger.LogInformation("Stop command exited with code {ExitCode}", stopCommand.ExitCode);
             if (stopCommand.ExitCode != 0)
@@ -113,6 +137,16 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         _logger.LogInformation("Starting asterisk process ({Path})...", _asteriskProcess.StartInfo.FileName);
         _asteriskProcess.Start();
         _asteriskStarted = true;
+
+        // Nothing else reads stderr, and once its pipe fills up Asterisk blocks on its next write
+        _ = Task.Run(async () =>
+        {
+            while (await _asteriskProcess.StandardError.ReadLineAsync(CancellationToken.None) is { } line)
+            {
+                if (!string.IsNullOrEmpty(line)) _logger.LogWarning("{Line}", line);
+            }
+        }, CancellationToken.None);
+
         _ = Task.Run(async () =>
         {
             await Task.Delay(500, stoppingToken);
@@ -131,6 +165,8 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 else _logger.LogInformation(line);
             }
 
+            IsReady = false;
+            await _asteriskProcess.WaitForExitAsync(CancellationToken.None);
             if (_asteriskProcess.ExitCode == 0)
             {
                 _logger.LogInformation("Asterisk process exited normally.");
@@ -152,6 +188,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         if (!_asteriskStarted || _asteriskProcess.HasExited) return;
 
         IsReady = false;
+        await _monitorCts.CancelAsync();
         _logger.LogInformation("Stopping asterisk...");
 
         // Not awaited: if asterisk hangs, the CLI command hangs with it
@@ -230,23 +267,42 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     /// </summary>
     public async Task WriteConfiguration()
     {
+        await _configurationLock.WaitAsync();
+        try
+        {
+            await WriteConfigurationFiles();
+        }
+        finally
+        {
+            _configurationLock.Release();
+        }
+    }
+
+    private async Task WriteConfigurationFiles()
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<EchoDbContext>();
+
         #region Data retrieval from database
 
-        var extensions = await _dbContext.Extensions.Select(x => new
+        var extensions = await dbContext.Extensions.Select(x => new
         {
             x.DisplayName,
             x.ExtensionNumber,
             x.Password,
             x.OutgoingTrunkId,
+            x.MaxDevices,
         }).ToArrayAsync();
 
-        var trunks = await _dbContext.Trunks.Select(x => new
+        var trunks = await dbContext.Trunks.Select(x => new
         {
             x.Id,
             x.Host,
             x.Name,
             x.Username,
             x.Password,
+            x.Codecs,
+            x.Cid,
             x.IncomingCallBehaviour,
             Extensions = x.Extensions.Select(y => y.ExtensionNumber),
             Queue = x.Queue == null
@@ -260,7 +316,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             CallFlowSlug = x.CallFlow == null ? null : x.CallFlow.Slug,
         }).ToArrayAsync();
 
-        var queues = await _dbContext.Queues.Select(x => new
+        var queues = await dbContext.Queues.Select(x => new
         {
             x.Id,
             x.MaxLength,
@@ -281,7 +337,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 }).ToArray()
         }).ToArrayAsync();
 
-        var callFlows = await _dbContext.CallFlows.Select(x => new
+        var callFlows = await dbContext.CallFlows.Select(x => new
         {
             x.Id,
             x.Slug,
@@ -291,6 +347,8 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         }).ToArrayAsync();
 
         #endregion
+
+        var language = AsteriskLanguage();
 
         await WriteAmi();
         await WriteMusicOnHold();
@@ -390,11 +448,11 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
 
                         extensionLines.Add(" same => n,Queue(queue-" + trunk.Queue.Id + ")");
                     }
-                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingSpecificExtensions)
+                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingSpecificExtensions && trunk.Extensions.Any())
                     {
                         extensionLines.Add(" same => n,Dial(" + string.Join("&", trunk.Extensions.Select(x => $"PJSIP/{x}")) + ")");
                     }
-                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingAllExtensions)
+                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingAllExtensions && extensions.Length > 0)
                     {
                         extensionLines.Add(" same => n,Dial(" + string.Join("&", extensions.Select(x => $"PJSIP/{x.ExtensionNumber}")) + ")");
                     }
@@ -429,8 +487,14 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 foreach (var trunk in trunks)
                 {
                     extensionLines.Add($"[out-trunk-{trunk.Id}]");
-                    extensionLines.Add("exten => _X.,1,Dial(PJSIP/${EXTEN}@trunk-" + trunk.Id + ")");
-                    extensionLines.Add("exten => _X.,n,Hangup()");
+                    extensionLines.Add("exten => _X.,1,NoOp()");
+                    if (OutgoingCallerId(trunk.Cid) is { } cid)
+                    {
+                        extensionLines.Add($" same => n,Set(CALLERID(num)={cid})");
+                    }
+
+                    extensionLines.Add(" same => n,Dial(PJSIP/${EXTEN}@trunk-" + trunk.Id + ")");
+                    extensionLines.Add(" same => n,Hangup()");
                     extensionLines.Add("");
                     extensionLines.Add($"[using-trunk-{trunk.Id}]");
                     extensionLines.Add("include => from-internal");
@@ -574,7 +638,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 pjsip.Add("");
                 pjsip.Add($"[{ext.ExtensionNumber}]");
                 pjsip.Add("type=endpoint");
-                pjsip.Add("language=nl");
+                pjsip.Add($"language={language}");
                 pjsip.Add("transport=transport-udp");
                 pjsip.Add("disallow=all");
                 pjsip.Add("allow=alaw,ulaw,g729,slin");
@@ -592,7 +656,9 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 pjsip.Add("");
                 pjsip.Add($"[{ext.ExtensionNumber}]");
                 pjsip.Add("type=aor");
-                pjsip.Add($"max_contacts=5");
+                // Extensions saved before the dashboard had this field hold 0, which would lock every
+                // device out. 5 is what they always got.
+                pjsip.Add($"max_contacts={(ext.MaxDevices > 0 ? ext.MaxDevices : 5)}");
                 pjsip.Add("qualify_frequency=10");
                 pjsip.Add("");
             }
@@ -625,12 +691,20 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     pjsip.Add($"[trunk-{trunk.Id}]");
                     pjsip.Add("type=endpoint");
                     pjsip.Add($"context=from-trunk-{trunk.Id}");
-                    pjsip.Add("language=nl");
+                    pjsip.Add($"language={language}");
                     pjsip.Add("transport=transport-udp");
                     pjsip.Add("disallow=all");
-                    pjsip.Add("allow=alaw,g729");
+                    var codecs = trunk.Codecs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    pjsip.Add("allow=" + (codecs.Length > 0 ? string.Join(',', codecs) : "alaw"));
                     pjsip.Add($"outbound_auth=trunk-{trunk.Id}-auth");
                     pjsip.Add("direct_media=no");
+                    if (OutgoingCallerId(trunk.Cid) != null)
+                    {
+                        // from_user below fixes the From header, so the caller ID goes out as P-Asserted-Identity
+                        pjsip.Add("send_pai=yes");
+                        pjsip.Add("trust_id_outbound=yes");
+                    }
+
                     pjsip.Add($"aors=trunk-{trunk.Id}");
                     pjsip.Add($"from_domain={trunk.Host}");
                     pjsip.Add($"from_user={trunk.Username}");
@@ -692,24 +766,93 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     }
 
     /// <summary>
+    /// The language Asterisk plays its prompts in, from the AsteriskLanguage setting.
+    /// </summary>
+    private string AsteriskLanguage()
+    {
+        string? language = null;
+        try
+        {
+            language = _settingsService.Get("AsteriskLanguage");
+        }
+        catch (KeyNotFoundException)
+        {
+            // Not seeded yet, fall back below
+        }
+
+        // Language codes look like "en" or "en_GB"; anything else would break pjsip.conf
+        return !string.IsNullOrEmpty(language) && language.All(c => char.IsAsciiLetterOrDigit(c) || c == '_') ? language : "en";
+    }
+
+    /// <summary>
+    /// The caller ID number to present on calls out of a trunk, or null to leave it to the provider.
+    /// </summary>
+    private static string? OutgoingCallerId(string? cid)
+    {
+        var cleaned = new string((cid ?? "").Where(c => char.IsAsciiDigit(c) || c == '+').ToArray());
+        return cleaned.Any(char.IsAsciiDigit) ? cleaned : null;
+    }
+
+    /// <summary>
     /// Monitors ongoing calls by subscribing to AMI events. Updates the OngoingCalls list accordingly.
     /// </summary>
     private async Task MonitorOngoingCalls()
     {
-        await WaitUntilReady();
-        await _amiClient.ConnectAsync();
-        while (_amiClient.IsConnected)
+        var cancellationToken = _monitorCts.Token;
+        while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                var amiEvent = await _amiClient.ReadNextEventAsync();
+                await WaitUntilReady(cancellationToken);
+                await _amiClient.ConnectAsync(cancellationToken);
+                await ReadOngoingCalls();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Lost the AMI connection, reconnecting: {Message}", ex.Message);
+            }
+
+            _amiClient.Disconnect();
+
+            // Whatever was going on is unknown now; the next events rebuild the list
+            lock (_ongoingCalls) _ongoingCalls.Clear();
+            OngoingCallsUpdated?.Invoke(this, OngoingCalls);
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads AMI events until the connection drops, keeping the OngoingCalls list up to date.
+    /// </summary>
+    private async Task ReadOngoingCalls()
+    {
+        while (_amiClient.IsConnected)
+        {
+            // Outside the try, so a dropped connection ends the loop instead of being logged per event
+            var amiEvent = await _amiClient.ReadNextEventAsync();
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<EchoDbContext>();
                 if (!amiEvent.TryGetValue("UniqueId", out var uniqueId) || !amiEvent.TryGetValue("LinkedId", out var linkedId))
                 {
                     continue;
                 }
 
                 // Initialize
-                if (amiEvent.EventType == AmiEventType.NewChannel && OngoingCalls.All(x => x.UniqueId != uniqueId && x.UniqueId != linkedId))
+                if (amiEvent.EventType == AmiEventType.NewChannel && _ongoingCalls.All(x => x.UniqueId != uniqueId && x.UniqueId != linkedId))
                 {
                     var trunkMatch = Regex.Match(amiEvent["Channel"], @"^PJSIP/trunk-(\d+)");
                     var extensionMatch = Regex.Match(amiEvent["Channel"], @"^PJSIP/(\d+)");
@@ -732,6 +875,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     if (direction == CallDirection.Incoming)
                     {
                         call.ExternalNumber = amiEvent.GetValueOrDefault("CallerIDNum", "Unknown");
+                        call.TrunkId = int.Parse(trunkMatch.Groups[1].Value);
                     }
                     else if (direction == CallDirection.Outgoing)
                     {
@@ -744,35 +888,59 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                             continue;
                         }
 
-                        var extensionName = await _dbContext.Extensions
+                        var caller = await dbContext.Extensions
                             .AsNoTracking()
                             .Where(x => x.ExtensionNumber == call.ExtensionNumber)
-                            .Select(x => x.DisplayName)
+                            .Select(x => new { x.DisplayName, x.OutgoingTrunkId })
                             .FirstOrDefaultAsync();
 
-                        if (!string.IsNullOrEmpty(extensionName))
+                        if (!string.IsNullOrEmpty(caller?.DisplayName))
                         {
-                            call.ExtensionName = extensionName;
+                            call.ExtensionName = caller.DisplayName;
+                        }
+
+                        // A number that is dialled internally never leaves through a trunk
+                        if (await IsInternalNumber(dbContext, call.ExternalNumber))
+                        {
+                            call.Direction = CallDirection.Internal;
+                        }
+                        else
+                        {
+                            call.TrunkId = caller?.OutgoingTrunkId;
                         }
                     }
 
-                    var contact = await _contactSearchService.Search(call.ExternalNumber);
-                    if (contact != null)
+                    if (call.Direction != CallDirection.Internal)
                     {
-                        call.ExternalName = contact.Name;
+                        var contact = await scope.ServiceProvider.GetRequiredService<IContactSearchService>().Search(call.ExternalNumber);
+                        if (contact != null)
+                        {
+                            call.ExternalName = contact.Name;
+                        }
                     }
 
-                    OngoingCalls.Add(call);
+                    lock (_ongoingCalls) _ongoingCalls.Add(call);
+                    OngoingCallsUpdated?.Invoke(this, OngoingCalls);
+                }
+
+                // Waiting in a queue
+                else if (amiEvent.EventType == AmiEventType.QueueCallerJoin)
+                {
+                    var call = _ongoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
+                    var queueMatch = Regex.Match(amiEvent.GetValueOrDefault("Queue", ""), @"^queue-(\d+)$");
+                    if (call == null || !queueMatch.Success) continue;
+
+                    call.QueueId = int.Parse(queueMatch.Groups[1].Value);
                     OngoingCallsUpdated?.Invoke(this, OngoingCalls);
                 }
 
                 // Picking up
                 else if (amiEvent.EventType == AmiEventType.BridgeEnter)
                 {
-                    var call = OngoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
+                    var call = _ongoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
                     if (call == null || call.State == CallState.Ongoing) continue;
 
-                    var extension = await _dbContext.Extensions
+                    var extension = await dbContext.Extensions
                         .AsNoTracking()
                         .Where(x => x.ExtensionNumber.ToString() == amiEvent["CallerIDNum"])
                         .Select(x => new
@@ -793,7 +961,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 // Call ended
                 else if (amiEvent.EventType == AmiEventType.Hangup)
                 {
-                    var call = OngoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
+                    var call = _ongoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
                     if (call == null) continue;
 
                     // it should be either the external number or the extension number that hangs up
@@ -805,7 +973,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     }
 
 
-                    OngoingCalls.Remove(call);
+                    lock (_ongoingCalls) _ongoingCalls.Remove(call);
                     OngoingCallsUpdated?.Invoke(this, OngoingCalls);
                 }
             }
@@ -814,6 +982,17 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 _logger.LogError(ex, "Error while monitoring ongoing calls");
             }
         }
+    }
+
+    /// <summary>
+    /// Whether a dialled number belongs to an extension or a call flow rather than the outside world.
+    /// </summary>
+    private static async Task<bool> IsInternalNumber(EchoDbContext dbContext, string number)
+    {
+        if (!int.TryParse(number, out var internalNumber)) return false;
+
+        return await dbContext.Extensions.AnyAsync(x => x.ExtensionNumber == internalNumber)
+               || await dbContext.CallFlows.AnyAsync(x => x.InternalNumber == internalNumber);
     }
 
     /// <summary>
@@ -832,10 +1011,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         };
 
         process.Start();
+
+        // Read both streams while the command runs; a full pipe would block it forever
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
-        var output = await process.StandardOutput.ReadToEndAsync();
+        await error;
+        var result = await output;
         process.Dispose();
-        return output;
+        return result;
     }
 
     [GeneratedRegex(@"Contact:\s+([A-Za-z0-9-]+)\/sip:([^ \t;]+)")]

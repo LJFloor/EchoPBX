@@ -96,4 +96,9 @@ public struct AmiEventType
     /// Raised when a bridge is created.
     /// </summary>
     public const string BridgeEnter = "BridgeEnter";
+
+    /// <summary>
+    /// Raised when a caller joins a queue.
+    /// </summary>
+    public const string QueueCallerJoin = "QueueCallerJoin";
 }

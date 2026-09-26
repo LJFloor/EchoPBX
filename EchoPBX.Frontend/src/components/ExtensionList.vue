@@ -4,6 +4,9 @@ import type { Extension } from '~/types/Extension';
 import Select from './Select/Select.vue';
 import Btn from './Button/Btn.vue';
 import { ref, watch } from 'vue';
+import { useTranslation } from '~/composables/useTranslation';
+
+const { t } = useTranslation();
 
 const extensions = defineModel<number[]>({ default: () => [] });
 
@@ -59,7 +62,7 @@ watch(displayExtensions, (newVal) => {
             <Btn design="icon-secondary" icon="mdi:arrow-down" :disabled="i === extensions.length - 1"
                 @click="moveDown(i)" />
         </div>
-        <Btn :disabled="displayExtensions.length >= availableExtensions.length" design="banner" label="Add extension" icon="mdi:plus" @click="addNewExtension" />
+        <Btn :disabled="displayExtensions.length >= availableExtensions.length" design="banner" :label="t('button.add-extension')" icon="mdi:plus" @click="addNewExtension" />
 
     </div>
 </template>

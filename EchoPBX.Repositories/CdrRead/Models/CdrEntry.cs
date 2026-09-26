@@ -19,4 +19,8 @@ public class CdrEntry
     public long End { get; set; }
     
     public int Duration { get; set; }
+
+    public int BillSeconds { get; set; }
+
+    public CdrDisposition Disposition { get; set; }
 }
