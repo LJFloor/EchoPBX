@@ -112,7 +112,10 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 RedirectStandardError = true,
             };
             stopCommand.Start();
+            var stopOutput = stopCommand.StandardOutput.ReadToEndAsync(stoppingToken);
+            var stopError = stopCommand.StandardError.ReadToEndAsync(stoppingToken);
             await stopCommand.WaitForExitAsync(stoppingToken);
+            await Task.WhenAll(stopOutput, stopError);
 
             _logger.LogInformation("Stop command exited with code {ExitCode}", stopCommand.ExitCode);
             if (stopCommand.ExitCode != 0)
@@ -134,6 +137,16 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         _logger.LogInformation("Starting asterisk process ({Path})...", _asteriskProcess.StartInfo.FileName);
         _asteriskProcess.Start();
         _asteriskStarted = true;
+
+        // Nothing else reads stderr, and once its pipe fills up Asterisk blocks on its next write
+        _ = Task.Run(async () =>
+        {
+            while (await _asteriskProcess.StandardError.ReadLineAsync(CancellationToken.None) is { } line)
+            {
+                if (!string.IsNullOrEmpty(line)) _logger.LogWarning("{Line}", line);
+            }
+        }, CancellationToken.None);
+
         _ = Task.Run(async () =>
         {
             await Task.Delay(500, stoppingToken);
@@ -998,10 +1011,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         };
 
         process.Start();
+
+        // Read both streams while the command runs; a full pipe would block it forever
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
-        var output = await process.StandardOutput.ReadToEndAsync();
+        await error;
+        var result = await output;
         process.Dispose();
-        return output;
+        return result;
     }
 
     [GeneratedRegex(@"Contact:\s+([A-Za-z0-9-]+)\/sip:([^ \t;]+)")]
