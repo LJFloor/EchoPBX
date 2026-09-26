@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { CallDirection,CallState, type  OngoingCall } from '~/types/OngoingCall';
 import { CdrDisposition, type CdrEntry } from '~/types/Cdr';
 import { Column } from '~/components/DataGrid/Column';
@@ -47,6 +47,10 @@ function formatDuration(timestamp: number): string {
     return durationDate.toISOString().substr(11, 8);
 }
 
+let unmounted = false;
+let websocket: WebSocket | undefined;
+let durationInterval: ReturnType<typeof setInterval> | undefined;
+
 onMounted(async () => {
     fetch('/api/cdr?n=25')
         .then(res => res.ok ? res.json() : [])
@@ -57,13 +61,16 @@ onMounted(async () => {
     const callsResponse = await fetch('/api/asterisk/ongoing-calls');
     calls.value = await callsResponse.json();
 
-    const websocket = new WebSocket(`${window.location.protocol.replace('http', 'ws')}//${window.location.host}/api/asterisk/ongoing-calls/live`);
+    // The user may have left while the calls were loading
+    if (unmounted) return;
+
+    websocket = new WebSocket(`${window.location.protocol.replace('http', 'ws')}//${window.location.host}/api/asterisk/ongoing-calls/live`);
     websocket.onmessage = (event) => {
         const data = JSON.parse(event.data) as OngoingCall[];
         calls.value = data;
     };
 
-    setInterval(() => {
+    durationInterval = setInterval(() => {
         const newDurations: Record<string, string> = {};
         for (const call of calls.value.filter(c => c.state === CallState.Ongoing)) {
             const timestamp = call.pickupTime ?? call.startTime;
@@ -71,6 +78,12 @@ onMounted(async () => {
         }
         pickupDurations.value = newDurations;
     }, 100);
+});
+
+onUnmounted(() => {
+    unmounted = true;
+    websocket?.close();
+    clearInterval(durationInterval);
 });
 </script>
 
