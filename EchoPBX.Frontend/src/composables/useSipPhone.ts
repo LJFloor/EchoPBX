@@ -122,13 +122,26 @@ export function useSipPhone() {
         held.value = !held.value;
     }
 
+    // Blind transfer: the PBX takes over the other party and ends our side of the call
+    function transfer(number: string) {
+        if (!session.value || callState.value !== 'active' || !number) return;
+
+        lastError.value = '';
+        session.value.refer(`sip:${number}@${window.location.hostname}`, {
+            eventHandlers: {
+                requestFailed: ({ cause }: { cause: string }) => lastError.value = cause,
+                failed: ({ status_line }: { status_line: { reason_phrase: string } }) => lastError.value = status_line.reason_phrase,
+            },
+        });
+    }
+
     function sendDtmf(tone: string) {
         if (callState.value === 'active') session.value?.sendDTMF(tone);
     }
 
     return {
         registration, callState, remoteParty, muted, held, dnd, callStartedAt, lastError,
-        start, stop, call, answer, hangup, toggleMute, toggleHold, sendDtmf,
+        start, stop, call, answer, hangup, toggleMute, toggleHold, transfer, sendDtmf,
     };
 }
 
@@ -162,7 +175,11 @@ function attach(newSession: RTCSession, state: CallState) {
         callState.value = 'active';
         callStartedAt.value = Date.now();
     });
-    newSession.on('ended', reset);
+    newSession.on('ended', () => {
+        // A failed transfer attempt no longer matters once the call is over
+        lastError.value = '';
+        reset();
+    });
     newSession.on('failed', ({ cause }) => {
         // A canceled call was hung up on purpose, by either side, so there is nothing to explain
         if (cause !== 'Canceled') lastError.value = cause;

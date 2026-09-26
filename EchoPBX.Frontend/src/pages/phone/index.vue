@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Icon } from '@iconify/vue';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import Btn from '~/components/Button/Btn.vue';
 import Textbox from '~/components/Input/Textbox.vue';
 import { useSipPhone, type PhoneCredentials } from '~/composables/useSipPhone';
@@ -21,6 +21,10 @@ const loginError = ref('');
 const loading = ref(false);
 const number = ref('');
 const now = ref(Date.now());
+const transferring = ref(false); // The keypad and number field pick a transfer target instead of sending DTMF
+
+// Typing goes into the number field, rather than being sent as DTMF
+const dialing = computed(() => phone.callState.value === 'idle' || transferring.value);
 
 const keys: [string, string][] = [
     ['1', ''], ['2', 'ABC'], ['3', 'DEF'],
@@ -43,12 +47,13 @@ const duration = computed(() => {
 });
 
 const callStatus = computed(() => {
+    if (transferring.value) return t('phone.transfer-to');
     if (phone.held.value) return t('phone.on-hold');
     return {
         idle: phone.lastError.value,
         incoming: t('phone.incoming'),
         outgoing: t('phone.calling'),
-        active: duration.value,
+        active: phone.lastError.value || duration.value,
     }[phone.callState.value];
 });
 
@@ -110,12 +115,27 @@ function logout() {
 
 function press(key: string) {
     playDtmf(key);
-    if (phone.callState.value === 'active') phone.sendDtmf(key);
-    else number.value += key;
+    if (dialing.value) number.value += key;
+    else if (phone.callState.value === 'active') phone.sendDtmf(key);
 }
+
+function toggleTransfer() {
+    transferring.value = !transferring.value;
+    number.value = '';
+}
+
+function transfer() {
+    phone.transfer(number.value.trim());
+    transferring.value = false;
+}
+
+watch(phone.callState, (state) => {
+    if (state !== 'active') transferring.value = false;
+});
 
 function callOrAnswer() {
     if (phone.callState.value === 'incoming') phone.answer();
+    else if (transferring.value) transfer();
     else if (phone.callState.value === 'idle') phone.call(number.value.trim());
 }
 
@@ -123,7 +143,7 @@ function onKeydown(event: KeyboardEvent) {
     if (!credentials.value || event.ctrlKey || event.metaKey || event.altKey) return;
 
     // The number input handles its own typing, it only needs the tone
-    const typing = event.target instanceof HTMLInputElement && phone.callState.value === 'idle';
+    const typing = event.target instanceof HTMLInputElement && dialing.value;
     if (/^[0-9*#]$/.test(event.key) && typing) {
         if (!event.repeat) playDtmf(event.key);
         return;
@@ -132,6 +152,7 @@ function onKeydown(event: KeyboardEvent) {
     if (/^[0-9*#]$/.test(event.key)) press(event.key);
     else if (event.key === 'Backspace' && !typing) number.value = number.value.slice(0, -1);
     else if (event.key === 'Enter') callOrAnswer();
+    else if (event.key === 'Escape' && transferring.value) toggleTransfer();
     else if (event.key === 'Escape') phone.hangup();
     else return;
 
@@ -218,15 +239,15 @@ onUnmounted(() => {
             <template v-else>
                 <div class="p-2 space-y-2 flex-1 flex flex-col">
                     <div class="flex h-10 border border-gray-300 rounded focus-within:border-sky-600">
-                        <input v-model="number" type="tel" class="flex-1 min-w-0 px-2 text-lg outline-none bg-transparent" :readonly="phone.callState.value !== 'idle'" />
-                        <button v-if="number && phone.callState.value === 'idle'" type="button" class="px-2 text-gray-500 hover:text-gray-800" @click="number = number.slice(0, -1)">
+                        <input v-model="number" type="tel" class="flex-1 min-w-0 px-2 text-lg outline-none bg-transparent" :readonly="!dialing" />
+                        <button v-if="number && dialing" type="button" class="px-2 text-gray-500 hover:text-gray-800" @click="number = number.slice(0, -1)">
                             <Icon icon="mdi:backspace-outline" class="size-5" />
                         </button>
                     </div>
 
                     <div class="h-10 text-center leading-tight">
                         <div class="font-semibold truncate">{{ phone.remoteParty.value }}</div>
-                        <div class="text-sm" :class="phone.callState.value === 'idle' ? 'text-red-600' : 'text-gray-500'">{{ callStatus }}</div>
+                        <div class="text-sm" :class="phone.lastError.value ? 'text-red-600' : 'text-gray-500'">{{ callStatus }}</div>
                     </div>
 
                     <div class="grid grid-cols-3 gap-1">
@@ -248,16 +269,20 @@ onUnmounted(() => {
                                 <Icon icon="mdi:phone-hangup" class="size-5" /> {{ t('phone.reject') }}
                             </button>
                         </template>
-                        <button v-else-if="phone.callState.value !== 'idle'" type="button" class="flex-1 h-11 rounded bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2" @click="phone.hangup()">
+                        <button v-if="transferring" type="button" class="flex-1 h-11 rounded bg-sky-600 hover:bg-sky-700 text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                            :disabled="!number.trim()" @click="transfer()">
+                            <Icon icon="mdi:phone-forward" class="size-5" /> {{ t('phone.transfer') }}
+                        </button>
+                        <button v-if="phone.callState.value === 'outgoing' || phone.callState.value === 'active'" type="button" class="flex-1 h-11 rounded bg-red-600 hover:bg-red-700 text-white flex items-center justify-center gap-2" @click="phone.hangup()">
                             <Icon icon="mdi:phone-hangup" class="size-5" /> {{ t('phone.hangup') }}
                         </button>
-                        <button v-else type="button" class="flex-1 h-11 rounded bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 disabled:opacity-50"
+                        <button v-if="phone.callState.value === 'idle'" type="button" class="flex-1 h-11 rounded bg-green-600 hover:bg-green-700 text-white flex items-center justify-center gap-2 disabled:opacity-50"
                             :disabled="!number.trim() || phone.registration.value !== 'online'" @click="callOrAnswer()">
                             <Icon icon="mdi:phone" class="size-5" /> {{ t('phone.call') }}
                         </button>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-1">
+                    <div class="grid grid-cols-4 gap-1">
                         <button type="button" class="h-8 border rounded flex items-center justify-center disabled:opacity-50" :disabled="phone.callState.value !== 'active'"
                             :class="phone.muted.value ? 'bg-sky-600 border-sky-600 text-white' : 'border-gray-300 hover:bg-gray-50'"
                             :title="t('phone.mute')" :aria-label="t('phone.mute')" :aria-pressed="phone.muted.value" @click="phone.toggleMute()">
@@ -267,6 +292,11 @@ onUnmounted(() => {
                             :class="phone.held.value ? 'bg-sky-600 border-sky-600 text-white' : 'border-gray-300 hover:bg-gray-50'"
                             :title="t('phone.hold')" :aria-label="t('phone.hold')" :aria-pressed="phone.held.value" @click="phone.toggleHold()">
                             <Icon :icon="phone.held.value ? 'mdi:play' : 'mdi:pause'" class="size-5" />
+                        </button>
+                        <button type="button" class="h-8 border rounded flex items-center justify-center disabled:opacity-50" :disabled="phone.callState.value !== 'active'"
+                            :class="transferring ? 'bg-sky-600 border-sky-600 text-white' : 'border-gray-300 hover:bg-gray-50'"
+                            :title="t('phone.transfer')" :aria-label="t('phone.transfer')" :aria-pressed="transferring" @click="toggleTransfer()">
+                            <Icon icon="mdi:phone-forward" class="size-5" />
                         </button>
                         <button type="button" class="h-8 border rounded flex items-center justify-center"
                             :class="phone.dnd.value ? 'bg-red-600 border-red-600 text-white' : 'border-gray-300 hover:bg-gray-50'"

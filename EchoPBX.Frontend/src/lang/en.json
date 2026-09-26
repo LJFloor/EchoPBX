@@ -193,6 +193,8 @@
     "hangup": "Hang up",
     "mute": "Mute",
     "hold": "Hold",
+    "transfer": "Transfer",
+    "transfer-to": "Transfer to...",
     "dnd": "Do not disturb",
     "incoming": "Incoming call",
     "calling": "Calling...",
