@@ -18,6 +18,8 @@ public class CdrReadRepository(EchoDbContext dbContext) : ICdrReadRepository
                 Source = x.Source,
                 Answer = x.Answer,
                 Duration = x.Duration,
+                BillSeconds = x.BillSeconds,
+                Disposition = x.Disposition,
                 End = x.End,
                 Start = x.Start
             }).ToArrayAsync();

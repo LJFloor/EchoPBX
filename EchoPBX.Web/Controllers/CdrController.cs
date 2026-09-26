@@ -15,6 +15,7 @@ public class CdrController(ICdrReadRepository cdrReadRepository)
     /// List CDR entries.
     /// </summary>
     /// <param name="n">Number of entries to return</param>
+    [HttpGet]
     public async Task<CdrEntry[]> List([FromQuery] int n = 100)
     {
         return await cdrReadRepository.List(n);

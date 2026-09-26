@@ -2,6 +2,7 @@
 import { Icon } from '@iconify/vue';
 import { onMounted, ref } from 'vue';
 import { CallDirection,CallState, type  OngoingCall } from '~/types/OngoingCall';
+import { CdrDisposition, type CdrEntry } from '~/types/Cdr';
 import { Column } from '~/components/DataGrid/Column';
 import DataGrid from '~/components/DataGrid/DataGrid.vue';
 import AdminLayout from '~/layouts/AdminLayout.vue';
@@ -18,6 +19,21 @@ const callColumns = [
     new Column({ field: 'duration', label: t('label.duration') }),
 ];
 
+const historyColumns = [
+    new Column({ field: 'directionIcon', label: ' ', width: 35 }),
+    new Column({ field: 'start', label: t('label.time'), width: 200 }),
+    new Column({ field: 'source', label: t('label.from'), width: 250 }),
+    new Column({ field: 'destination', label: t('label.to'), width: 250 }),
+    new Column({ field: 'disposition', label: t('label.status'), width: 150 }),
+    new Column({ field: 'billSeconds', label: t('label.duration') }),
+];
+
+const history = ref<CdrEntry[]>([]);
+
+function formatSeconds(seconds: number): string {
+    return new Date(seconds * 1000).toISOString().substring(11, 19);
+}
+
 // Uniqueid => duration string
 const pickupDurations = ref<Record<string, string>>({});
 
@@ -32,6 +48,12 @@ function formatDuration(timestamp: number): string {
 }
 
 onMounted(async () => {
+    fetch('/api/cdr?n=25')
+        .then(res => res.ok ? res.json() : [])
+        .then(data => {
+            history.value = data;
+        });
+
     const callsResponse = await fetch('/api/asterisk/ongoing-calls');
     calls.value = await callsResponse.json();
 
@@ -88,6 +110,32 @@ onMounted(async () => {
 
                     <template #empty>
                         {{ t('label.no-ongoing-calls') }}
+                    </template>
+                </DataGrid>
+            </div>
+
+            <div class="bg-white p-4 col-span-3 rounded shadow space-y-4">
+                <h2 class="text-lg text-slate-700 font-semibold mb-2">{{ t('label.recent-calls') }}</h2>
+                <DataGrid :rows="history" :columns="historyColumns">
+                    <template #cell.directionIcon="{ row }">
+                        <Icon v-if="row.direction === CallDirection.Incoming" icon="mdi:phone-incoming" class="text-green-500" />
+                        <Icon v-else-if="row.direction === CallDirection.Outgoing" icon="mdi:phone-outgoing" class="text-blue-500" />
+                        <Icon v-else icon="mdi:phone" class="text-gray-500" />
+                    </template>
+                    <template #cell.start="{ row }">
+                        {{ new Date(row.start).toLocaleString() }}
+                    </template>
+                    <template #cell.disposition="{ row }">
+                        <span v-if="row.disposition === CdrDisposition.Answered" class="text-green-600">{{ t('label.answered') }}</span>
+                        <span v-else-if="row.disposition === CdrDisposition.Busy" class="text-yellow-600">{{ t('label.busy') }}</span>
+                        <span v-else class="text-red-600">{{ t('label.not-answered') }}</span>
+                    </template>
+                    <template #cell.billSeconds="{ row }">
+                        <span v-if="row.disposition === CdrDisposition.Answered">{{ formatSeconds(row.billSeconds) }}</span>
+                    </template>
+
+                    <template #empty>
+                        {{ t('label.no-recent-calls') }}
                     </template>
                 </DataGrid>
             </div>
