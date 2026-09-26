@@ -7,6 +7,7 @@ using EchoPBX.Data.Models;
 using EchoPBX.Data.Services.Asterisk.Models;
 using EchoPBX.Data.Services.CallFlows;
 using EchoPBX.Data.Services.ContactSearch;
+using EchoPBX.Data.Services.Settings;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -21,6 +22,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     private readonly Process _asteriskProcess;
     private bool _asteriskStarted;
     private readonly IContactSearchService _contactSearchService;
+    private readonly ISettingsService _settingsService;
 
     /// <summary>
     /// Full path to the asterisk executable
@@ -58,6 +60,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         _logger = scope.ServiceProvider.GetRequiredService<ILogger<AsteriskWorker>>();
         _amiClient = scope.ServiceProvider.GetRequiredService<IAmiClient>();
         _contactSearchService = scope.ServiceProvider.GetRequiredService<IContactSearchService>();
+        _settingsService = serviceProvider.GetRequiredService<ISettingsService>();
         _asteriskProcess = new Process
         {
             StartInfo = new ProcessStartInfo(AsteriskPath, "-f")
@@ -294,6 +297,8 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         }).ToArrayAsync();
 
         #endregion
+
+        var language = AsteriskLanguage();
 
         await WriteAmi();
         await WriteMusicOnHold();
@@ -583,7 +588,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 pjsip.Add("");
                 pjsip.Add($"[{ext.ExtensionNumber}]");
                 pjsip.Add("type=endpoint");
-                pjsip.Add("language=nl");
+                pjsip.Add($"language={language}");
                 pjsip.Add("transport=transport-udp");
                 pjsip.Add("disallow=all");
                 pjsip.Add("allow=alaw,ulaw,g729,slin");
@@ -636,7 +641,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     pjsip.Add($"[trunk-{trunk.Id}]");
                     pjsip.Add("type=endpoint");
                     pjsip.Add($"context=from-trunk-{trunk.Id}");
-                    pjsip.Add("language=nl");
+                    pjsip.Add($"language={language}");
                     pjsip.Add("transport=transport-udp");
                     pjsip.Add("disallow=all");
                     var codecs = trunk.Codecs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -708,6 +713,25 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// The language Asterisk plays its prompts in, from the AsteriskLanguage setting.
+    /// </summary>
+    private string AsteriskLanguage()
+    {
+        string? language = null;
+        try
+        {
+            language = _settingsService.Get("AsteriskLanguage");
+        }
+        catch (KeyNotFoundException)
+        {
+            // Not seeded yet, fall back below
+        }
+
+        // Language codes look like "en" or "en_GB"; anything else would break pjsip.conf
+        return !string.IsNullOrEmpty(language) && language.All(c => char.IsAsciiLetterOrDigit(c) || c == '_') ? language : "en";
     }
 
     /// <summary>
