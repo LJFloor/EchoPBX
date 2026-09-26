@@ -21,6 +21,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     private readonly IAmiClient _amiClient;
     private readonly Process _asteriskProcess;
     private bool _asteriskStarted;
+    private readonly CancellationTokenSource _monitorCts = new();
     private readonly IContactSearchService _contactSearchService;
     private readonly ISettingsService _settingsService;
 
@@ -134,6 +135,8 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 else _logger.LogInformation(line);
             }
 
+            IsReady = false;
+            await _asteriskProcess.WaitForExitAsync(CancellationToken.None);
             if (_asteriskProcess.ExitCode == 0)
             {
                 _logger.LogInformation("Asterisk process exited normally.");
@@ -155,6 +158,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         if (!_asteriskStarted || _asteriskProcess.HasExited) return;
 
         IsReady = false;
+        await _monitorCts.CancelAsync();
         _logger.LogInformation("Stopping asterisk...");
 
         // Not awaited: if asterisk hangs, the CLI command hangs with it
@@ -748,13 +752,52 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     /// </summary>
     private async Task MonitorOngoingCalls()
     {
-        await WaitUntilReady();
-        await _amiClient.ConnectAsync();
-        while (_amiClient.IsConnected)
+        var cancellationToken = _monitorCts.Token;
+        while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                var amiEvent = await _amiClient.ReadNextEventAsync();
+                await WaitUntilReady(cancellationToken);
+                await _amiClient.ConnectAsync(cancellationToken);
+                await ReadOngoingCalls();
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Lost the AMI connection, reconnecting: {Message}", ex.Message);
+            }
+
+            _amiClient.Disconnect();
+
+            // Whatever was going on is unknown now; the next events rebuild the list
+            OngoingCalls.Clear();
+            OngoingCallsUpdated?.Invoke(this, OngoingCalls);
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Reads AMI events until the connection drops, keeping the OngoingCalls list up to date.
+    /// </summary>
+    private async Task ReadOngoingCalls()
+    {
+        while (_amiClient.IsConnected)
+        {
+            // Outside the try, so a dropped connection ends the loop instead of being logged per event
+            var amiEvent = await _amiClient.ReadNextEventAsync();
+            try
+            {
                 if (!amiEvent.TryGetValue("UniqueId", out var uniqueId) || !amiEvent.TryGetValue("LinkedId", out var linkedId))
                 {
                     continue;

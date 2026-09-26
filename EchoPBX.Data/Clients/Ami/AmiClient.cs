@@ -8,9 +8,10 @@ namespace EchoPBX.Data.Clients.Ami;
 public class AmiClient(ILogger<AmiClient> logger) : IAmiClient
 {
     /// <summary>
-    /// Underlying TCP client for AMI connection
+    /// Underlying TCP client for AMI connection. A closed TcpClient cannot be reused, so every
+    /// connect gets a new one.
     /// </summary>
-    private readonly TcpClient _client = new TcpClient();
+    private TcpClient _client = new TcpClient();
 
     /// <inheritdoc />
     public bool IsConnected => _client.Connected;
@@ -37,6 +38,8 @@ public class AmiClient(ILogger<AmiClient> logger) : IAmiClient
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         logger.LogDebug("Connecting to Ami server on port {Port}", Port);
+        _client.Dispose();
+        _client = new TcpClient();
         await _client.ConnectAsync("127.0.0.1", Port, cancellationToken);
         logger.LogDebug("Connected to Ami server");
 
@@ -72,10 +75,12 @@ public class AmiClient(ILogger<AmiClient> logger) : IAmiClient
         {
             var line = await _reader.ReadLineAsync();
 
+            // End of stream: Asterisk closed the connection. TcpClient.Connected only notices
+            // that after a failed read or write, so it cannot be relied on here.
             if (line == null)
             {
-                await Task.Delay(100);
-                continue;
+                _client.Close();
+                break;
             }
 
             if (string.IsNullOrWhiteSpace(line))
@@ -98,6 +103,10 @@ public class AmiClient(ILogger<AmiClient> logger) : IAmiClient
                         eventData.Clear();
                         return amiEvent;
                     }
+
+                    // A response to an action rather than an event; drop it so it does not end
+                    // up in the next event
+                    eventData.Clear();
                 }
 
                 continue;
