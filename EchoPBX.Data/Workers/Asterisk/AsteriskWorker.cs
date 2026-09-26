@@ -16,13 +16,17 @@ namespace EchoPBX.Data.Workers.Asterisk;
 
 public partial class AsteriskWorker : IAsteriskWorker, IWorker
 {
-    private readonly EchoDbContext _dbContext;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<AsteriskWorker> _logger;
     private readonly IAmiClient _amiClient;
     private readonly Process _asteriskProcess;
     private bool _asteriskStarted;
     private readonly CancellationTokenSource _monitorCts = new();
-    private readonly IContactSearchService _contactSearchService;
+
+    /// <summary>
+    /// Keeps two requests from writing the configuration files at the same time.
+    /// </summary>
+    private readonly SemaphoreSlim _configurationLock = new(1, 1);
     private readonly ISettingsService _settingsService;
 
     /// <summary>
@@ -56,11 +60,12 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             throw new DirectoryNotFoundException($"Asterisk config directory not found! ({AsteriskConfigPath})");
         }
 
+        // This worker is a singleton used from several threads at once, so every piece of work gets
+        // its own scope and DbContext instead of sharing one
+        _scopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
         var scope = serviceProvider.CreateScope();
-        _dbContext = scope.ServiceProvider.GetRequiredService<EchoDbContext>();
         _logger = scope.ServiceProvider.GetRequiredService<ILogger<AsteriskWorker>>();
         _amiClient = scope.ServiceProvider.GetRequiredService<IAmiClient>();
-        _contactSearchService = scope.ServiceProvider.GetRequiredService<IContactSearchService>();
         _settingsService = serviceProvider.GetRequiredService<ISettingsService>();
         _asteriskProcess = new Process
         {
@@ -237,9 +242,25 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     /// </summary>
     public async Task WriteConfiguration()
     {
+        await _configurationLock.WaitAsync();
+        try
+        {
+            await WriteConfigurationFiles();
+        }
+        finally
+        {
+            _configurationLock.Release();
+        }
+    }
+
+    private async Task WriteConfigurationFiles()
+    {
+        using var scope = _scopeFactory.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<EchoDbContext>();
+
         #region Data retrieval from database
 
-        var extensions = await _dbContext.Extensions.Select(x => new
+        var extensions = await dbContext.Extensions.Select(x => new
         {
             x.DisplayName,
             x.ExtensionNumber,
@@ -248,7 +269,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             x.MaxDevices,
         }).ToArrayAsync();
 
-        var trunks = await _dbContext.Trunks.Select(x => new
+        var trunks = await dbContext.Trunks.Select(x => new
         {
             x.Id,
             x.Host,
@@ -270,7 +291,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             CallFlowSlug = x.CallFlow == null ? null : x.CallFlow.Slug,
         }).ToArrayAsync();
 
-        var queues = await _dbContext.Queues.Select(x => new
+        var queues = await dbContext.Queues.Select(x => new
         {
             x.Id,
             x.MaxLength,
@@ -291,7 +312,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 }).ToArray()
         }).ToArrayAsync();
 
-        var callFlows = await _dbContext.CallFlows.Select(x => new
+        var callFlows = await dbContext.CallFlows.Select(x => new
         {
             x.Id,
             x.Slug,
@@ -798,6 +819,8 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             var amiEvent = await _amiClient.ReadNextEventAsync();
             try
             {
+                using var scope = _scopeFactory.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<EchoDbContext>();
                 if (!amiEvent.TryGetValue("UniqueId", out var uniqueId) || !amiEvent.TryGetValue("LinkedId", out var linkedId))
                 {
                     continue;
@@ -840,7 +863,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                             continue;
                         }
 
-                        var caller = await _dbContext.Extensions
+                        var caller = await dbContext.Extensions
                             .AsNoTracking()
                             .Where(x => x.ExtensionNumber == call.ExtensionNumber)
                             .Select(x => new { x.DisplayName, x.OutgoingTrunkId })
@@ -852,7 +875,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                         }
 
                         // A number that is dialled internally never leaves through a trunk
-                        if (await IsInternalNumber(call.ExternalNumber))
+                        if (await IsInternalNumber(dbContext, call.ExternalNumber))
                         {
                             call.Direction = CallDirection.Internal;
                         }
@@ -864,7 +887,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
 
                     if (call.Direction != CallDirection.Internal)
                     {
-                        var contact = await _contactSearchService.Search(call.ExternalNumber);
+                        var contact = await scope.ServiceProvider.GetRequiredService<IContactSearchService>().Search(call.ExternalNumber);
                         if (contact != null)
                         {
                             call.ExternalName = contact.Name;
@@ -892,7 +915,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     var call = OngoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
                     if (call == null || call.State == CallState.Ongoing) continue;
 
-                    var extension = await _dbContext.Extensions
+                    var extension = await dbContext.Extensions
                         .AsNoTracking()
                         .Where(x => x.ExtensionNumber.ToString() == amiEvent["CallerIDNum"])
                         .Select(x => new
@@ -939,12 +962,12 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     /// <summary>
     /// Whether a dialled number belongs to an extension or a call flow rather than the outside world.
     /// </summary>
-    private async Task<bool> IsInternalNumber(string number)
+    private static async Task<bool> IsInternalNumber(EchoDbContext dbContext, string number)
     {
         if (!int.TryParse(number, out var internalNumber)) return false;
 
-        return await _dbContext.Extensions.AnyAsync(x => x.ExtensionNumber == internalNumber)
-               || await _dbContext.CallFlows.AnyAsync(x => x.InternalNumber == internalNumber);
+        return await dbContext.Extensions.AnyAsync(x => x.ExtensionNumber == internalNumber)
+               || await dbContext.CallFlows.AnyAsync(x => x.InternalNumber == internalNumber);
     }
 
     /// <summary>
