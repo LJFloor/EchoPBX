@@ -249,6 +249,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             x.Username,
             x.Password,
             x.Codecs,
+            x.Cid,
             x.IncomingCallBehaviour,
             Extensions = x.Extensions.Select(y => y.ExtensionNumber),
             Queue = x.Queue == null
@@ -431,8 +432,14 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 foreach (var trunk in trunks)
                 {
                     extensionLines.Add($"[out-trunk-{trunk.Id}]");
-                    extensionLines.Add("exten => _X.,1,Dial(PJSIP/${EXTEN}@trunk-" + trunk.Id + ")");
-                    extensionLines.Add("exten => _X.,n,Hangup()");
+                    extensionLines.Add("exten => _X.,1,NoOp()");
+                    if (OutgoingCallerId(trunk.Cid) is { } cid)
+                    {
+                        extensionLines.Add($" same => n,Set(CALLERID(num)={cid})");
+                    }
+
+                    extensionLines.Add(" same => n,Dial(PJSIP/${EXTEN}@trunk-" + trunk.Id + ")");
+                    extensionLines.Add(" same => n,Hangup()");
                     extensionLines.Add("");
                     extensionLines.Add($"[using-trunk-{trunk.Id}]");
                     extensionLines.Add("include => from-internal");
@@ -636,6 +643,13 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     pjsip.Add("allow=" + (codecs.Length > 0 ? string.Join(',', codecs) : "alaw"));
                     pjsip.Add($"outbound_auth=trunk-{trunk.Id}-auth");
                     pjsip.Add("direct_media=no");
+                    if (OutgoingCallerId(trunk.Cid) != null)
+                    {
+                        // from_user below fixes the From header, so the caller ID goes out as P-Asserted-Identity
+                        pjsip.Add("send_pai=yes");
+                        pjsip.Add("trust_id_outbound=yes");
+                    }
+
                     pjsip.Add($"aors=trunk-{trunk.Id}");
                     pjsip.Add($"from_domain={trunk.Host}");
                     pjsip.Add($"from_user={trunk.Username}");
@@ -694,6 +708,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         }
 
         #endregion
+    }
+
+    /// <summary>
+    /// The caller ID number to present on calls out of a trunk, or null to leave it to the provider.
+    /// </summary>
+    private static string? OutgoingCallerId(string? cid)
+    {
+        var cleaned = new string((cid ?? "").Where(c => char.IsAsciiDigit(c) || c == '+').ToArray());
+        return cleaned.Any(char.IsAsciiDigit) ? cleaned : null;
     }
 
     /// <summary>
