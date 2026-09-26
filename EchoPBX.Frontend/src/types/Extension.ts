@@ -3,6 +3,7 @@ export interface Extension {
     displayName?: string;
     email?: string;
     password: string;
+    maxDevices: number;
     connected: boolean;
     outgoingTrunkId: number | null;
 }

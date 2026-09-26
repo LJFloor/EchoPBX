@@ -30,7 +30,7 @@ public class Extension
     /// <summary>
     /// The maximum number of contacts (devices) that can be registered to this extension
     /// </summary>
-    [DefaultValue(1)]
+    [DefaultValue(5)]
     public int MaxDevices { get; set; } = 5;
 
     public Trunk? OutgoingTrunk { get; set; }

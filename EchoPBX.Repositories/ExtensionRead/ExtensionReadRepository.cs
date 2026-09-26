@@ -41,7 +41,7 @@ public class ExtensionReadRepository(EchoDbContext dbContext, IAsteriskWorker as
         {
             ExtensionNumber = x.ExtensionNumber,
             DisplayName = x.DisplayName,
-            MaxDevices = x.MaxDevices,
+            MaxDevices = x.MaxDevices > 0 ? x.MaxDevices : 5,
             Password = x.Password,
             OutgoingTrunkId = x.OutgoingTrunkId,
         });

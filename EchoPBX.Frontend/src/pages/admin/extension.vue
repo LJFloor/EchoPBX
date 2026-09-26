@@ -40,6 +40,7 @@ onMounted(async () => {
             extensionNumber: null!,
             password: generateStr(),
             displayName: '',
+            maxDevices: 5,
             connected: false,
             outgoingTrunkId: null,
         };
@@ -88,6 +89,9 @@ async function save() {
 
                     <div class="h-8 flex items-center">{{ t('label.name') }}:</div>
                     <Textbox :maxlength="15" v-model="extension.displayName" type="text" />
+
+                    <div class="font-semibold h-8 flex items-center">{{ t('label.max-devices') }}:</div>
+                    <Textbox :required="true" v-model="extension.maxDevices" type="number" />
 
                     <div class="h-8 flex items-center">{{ t('label.outgoing-trunk') }}:</div>
                     <div>

@@ -238,6 +238,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             x.ExtensionNumber,
             x.Password,
             x.OutgoingTrunkId,
+            x.MaxDevices,
         }).ToArrayAsync();
 
         var trunks = await _dbContext.Trunks.Select(x => new
@@ -592,7 +593,9 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 pjsip.Add("");
                 pjsip.Add($"[{ext.ExtensionNumber}]");
                 pjsip.Add("type=aor");
-                pjsip.Add($"max_contacts=5");
+                // Extensions saved before the dashboard had this field hold 0, which would lock every
+                // device out. 5 is what they always got.
+                pjsip.Add($"max_contacts={(ext.MaxDevices > 0 ? ext.MaxDevices : 5)}");
                 pjsip.Add("qualify_frequency=10");
                 pjsip.Add("");
             }
