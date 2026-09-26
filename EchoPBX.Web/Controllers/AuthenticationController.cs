@@ -97,6 +97,18 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
             .SetProperty(x => x.PasswordHash, hashed)
         );
 
+        // Sign out every other session, since whoever else holds a token may be why the password changed
+        var otherTokens = await dbContext.AccessTokens
+            .Where(x => x.AdminId == adminId && x.Token != token)
+            .Select(x => x.Token)
+            .ToArrayAsync();
+
+        await dbContext.AccessTokens.Where(x => otherTokens.Contains(x.Token)).ExecuteDeleteAsync();
+        foreach (var otherToken in otherTokens)
+        {
+            AuthenticationMiddleware.InvalidateToken(otherToken);
+        }
+
         return Ok("Password changed successfully");
     }
 }
