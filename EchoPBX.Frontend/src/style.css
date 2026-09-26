@@ -1,3 +1,5 @@
+@import "@vue-flow/core/dist/style.css";
+@import "@vue-flow/core/dist/theme-default.css";
 @import "tailwindcss";
 @import "./fonts/inter-v20-latin.css";
 

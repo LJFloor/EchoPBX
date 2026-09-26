@@ -3,6 +3,7 @@ using System;
 using EchoPBX.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,12 +11,14 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace EchoPBX.Data.Migrations
 {
     [DbContext(typeof(EchoDbContext))]
-    partial class EchoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260904221656_AddCallFlows")]
+    partial class AddCallFlows
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.22");
+            modelBuilder.HasAnnotation("ProductVersion", "8.0.30");
 
             modelBuilder.Entity("EchoPBX.Data.Models.AccessToken", b =>
                 {
@@ -193,6 +196,24 @@ namespace EchoPBX.Data.Migrations
                     b.ToTable("contacts");
                 });
 
+            modelBuilder.Entity("EchoPBX.Data.Models.DtmfMenuEntry", b =>
+                {
+                    b.Property<int>("TrunkId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Digit")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QueueId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("TrunkId", "Digit");
+
+                    b.HasIndex("QueueId");
+
+                    b.ToTable("dtmf_menu_entries");
+                });
+
             modelBuilder.Entity("EchoPBX.Data.Models.Extension", b =>
                 {
                     b.Property<int>("ExtensionNumber")
@@ -317,14 +338,14 @@ namespace EchoPBX.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("CallFlowId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<string>("Cid")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Codecs")
                         .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DtmfAnnouncement")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Host")
@@ -352,8 +373,6 @@ namespace EchoPBX.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CallFlowId");
 
                     b.HasIndex("QueueId");
 
@@ -384,6 +403,25 @@ namespace EchoPBX.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Admin");
+                });
+
+            modelBuilder.Entity("EchoPBX.Data.Models.DtmfMenuEntry", b =>
+                {
+                    b.HasOne("EchoPBX.Data.Models.Queue", "Queue")
+                        .WithMany()
+                        .HasForeignKey("QueueId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("EchoPBX.Data.Models.Trunk", "Trunk")
+                        .WithMany("DtmfMenuEntries")
+                        .HasForeignKey("TrunkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Queue");
+
+                    b.Navigation("Trunk");
                 });
 
             modelBuilder.Entity("EchoPBX.Data.Models.Extension", b =>
@@ -417,17 +455,10 @@ namespace EchoPBX.Data.Migrations
 
             modelBuilder.Entity("EchoPBX.Data.Models.Trunk", b =>
                 {
-                    b.HasOne("EchoPBX.Data.Models.CallFlow", "CallFlow")
-                        .WithMany()
-                        .HasForeignKey("CallFlowId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("EchoPBX.Data.Models.Queue", "Queue")
                         .WithMany()
                         .HasForeignKey("QueueId")
                         .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("CallFlow");
 
                     b.Navigation("Queue");
                 });
@@ -459,6 +490,11 @@ namespace EchoPBX.Data.Migrations
             modelBuilder.Entity("EchoPBX.Data.Models.Queue", b =>
                 {
                     b.Navigation("Extensions");
+                });
+
+            modelBuilder.Entity("EchoPBX.Data.Models.Trunk", b =>
+                {
+                    b.Navigation("DtmfMenuEntries");
                 });
 #pragma warning restore 612, 618
         }

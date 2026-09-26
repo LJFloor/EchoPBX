@@ -7,6 +7,7 @@ using EchoPBX.Data.Workers;
 using EchoPBX.Data.Workers.Asterisk;
 using EchoPBX.Data.Workers.Cdr;
 using EchoPBX.Repositories;
+using EchoPBX.Repositories.CallFlowWrite;
 using EchoPBX.Web.Authentication;
 using Microsoft.AspNetCore.WebSockets;
 using Microsoft.EntityFrameworkCore;
@@ -34,7 +35,14 @@ try
         .AddSerilog()
         .AddWebSockets(x => x.KeepAliveInterval = TimeSpan.FromSeconds(30))
         .AddRepositories()
-        .AddControllers().AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new EchoPBX.Web.Converters.UploadedFileJsonConverter()));
+        .AddControllers().AddJsonOptions(options =>
+        {
+            options.JsonSerializerOptions.Converters.Add(new EchoPBX.Web.Converters.UploadedFileJsonConverter());
+
+            // Polymorphic types such as CallFlowNode need their "type" discriminator, and the
+            // dashboard does not guarantee it is the first property of the object.
+            options.JsonSerializerOptions.AllowOutOfOrderMetadataProperties = true;
+        });
 
     builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
 
@@ -98,6 +106,8 @@ try
     {
         Log.Information("No pending migrations found.");
     }
+
+    await scope.ServiceProvider.GetRequiredService<ICallFlowWriteRepository>().MoveStraySounds();
 
     // Settings
     Log.Information("Loading settings");

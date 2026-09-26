@@ -5,6 +5,7 @@ using EchoPBX.Data.Clients.Ami.Models;
 using EchoPBX.Data.Dto;
 using EchoPBX.Data.Models;
 using EchoPBX.Data.Services.Asterisk.Models;
+using EchoPBX.Data.Services.CallFlows;
 using EchoPBX.Data.Services.ContactSearch;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -217,12 +218,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     x.Queue.Announcement,
                     x.Queue.Name
                 },
-            x.DtmfAnnouncement,
-            DtmfMenuEntries = x.DtmfMenuEntries.Select(e => new
-            {
-                e.Digit,
-                e.QueueId
-            }).ToArray()
+            CallFlowSlug = x.CallFlow == null ? null : x.CallFlow.Slug,
         }).ToArrayAsync();
 
         var queues = await _dbContext.Queues.Select(x => new
@@ -244,6 +240,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     y.ExtensionNumber,
                     y.Extension.DisplayName
                 }).ToArray()
+        }).ToArrayAsync();
+
+        var callFlows = await _dbContext.CallFlows.Select(x => new
+        {
+            x.Id,
+            x.Slug,
+            x.Name,
+            x.InternalNumber,
+            x.DefinitionJson,
         }).ToArrayAsync();
 
         #endregion
@@ -271,6 +276,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 "",
             };
 
+            // Entry points for the "test call" button, mirroring how queues are reached.
+            foreach (var callFlow in callFlows)
+            {
+                var context = CallFlowDialplanBuilder.ContextName(callFlow.Slug);
+                extensionLines.Add($"exten => {context},1,Goto({context},s,1)");
+            }
+
+            if (callFlows.Length > 0) extensionLines.Add("");
+
             foreach (var queue in queues)
             {
                 extensionLines.Add("exten => queue-" + queue.Id + ",1,Answer()");
@@ -297,7 +311,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 extensionLines.Add("");
             }
 
-            if (trunks.Length == 1)
+            foreach (var callFlow in callFlows.Where(x => x.InternalNumber != null))
+            {
+                var context = CallFlowDialplanBuilder.ContextName(callFlow.Slug);
+                extensionLines.Add($"exten => {callFlow.InternalNumber},1,NoOp(\"Call to call flow {callFlow.Slug}\")");
+                extensionLines.Add($" same => n,Goto({context},s,1)");
+                extensionLines.Add("");
+            }
+
+            if (trunks.Length > 0)
             {
                 extensionLines.Add(";=============================================");
                 extensionLines.Add("; Incoming Trunks");
@@ -308,9 +330,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 {
                     extensionLines.Add($"[from-trunk-{trunk.Id}]");
                     extensionLines.Add($"exten => _X.,1,NoOp(\"Incoming call on trunk {trunk.Name}\")");
-                    extensionLines.Add($" same => n,Set(LKUP=${{CURL(http://127.0.0.1:{Constants.HttpPort}/api/contacts/lookup?num=${{CALLERID(num)}})}})"); // This returns the Full name, or if not found an empty string
-                    extensionLines.Add(" same => n,Set(CALLERID(name)=${IF($[\"${LKUP}\" != \"\"]?${LKUP}:${CALLERID(name)})})");
 
+                    // Replace the caller's name with the matching contact, if there is one. The name
+                    // is only ever measured with LEN(), never placed inside an expression, since
+                    // quotes, colons or parentheses in it would break the expression.
+                    extensionLines.Add(" same => n,GotoIf($[${LEN(${CALLERID(num)})} = 0]?lookup_done)");
+                    extensionLines.Add($" same => n,Set(LKUP=${{CURL(http://127.0.0.1:{Constants.HttpPort}/api/contacts/lookup?num=${{CALLERID(num)}})}})"); // The contact's full name, or an empty string
+                    extensionLines.Add(" same => n,GotoIf($[${LEN(${LKUP})} = 0]?lookup_done)");
+                    extensionLines.Add(" same => n,Set(CALLERID(name)=${LKUP})");
+                    extensionLines.Add(" same => n(lookup_done),NoOp()");
 
                     if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToQueue && trunk.Queue != null)
                     {
@@ -331,63 +359,13 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     {
                         extensionLines.Add(" same => n,Dial(" + string.Join("&", extensions.Select(x => $"PJSIP/{x.ExtensionNumber}")) + ")");
                     }
-                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.DtmfMenu
-                             && trunk.DtmfMenuEntries.Length > 0
-                             && !string.IsNullOrEmpty(trunk.DtmfAnnouncement))
+                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToCallFlow && trunk.CallFlowSlug != null)
                     {
-                        // Jump to the dedicated DTMF menu context
-                        extensionLines.Add($" same => n,Goto(dtmf-trunk-{trunk.Id},s,1)");
+                        extensionLines.Add($" same => n,Goto({CallFlowDialplanBuilder.ContextName(trunk.CallFlowSlug)},s,1)");
                     }
 
                     extensionLines.Add(" same => n,Hangup()");
                     extensionLines.Add("");
-                }
-
-                // Generate DTMF menu contexts
-                var dtmfTrunks = trunks.Where(t =>
-                    t.IncomingCallBehaviour == IncomingCallBehaviour.DtmfMenu
-                    && t.DtmfMenuEntries.Length > 0
-                    && !string.IsNullOrEmpty(t.DtmfAnnouncement)).ToArray();
-
-                if (dtmfTrunks.Length > 0)
-                {
-                    extensionLines.Add(";=============================================");
-                    extensionLines.Add("; DTMF Menu Contexts");
-                    extensionLines.Add(";=============================================");
-                    extensionLines.Add("");
-
-                    foreach (var trunk in dtmfTrunks)
-                    {
-                        extensionLines.Add($"[dtmf-trunk-{trunk.Id}]");
-                        extensionLines.Add("exten => s,1,Answer()");
-                        extensionLines.Add(" same => n,Wait(1)");
-                        extensionLines.Add(" same => n,Set(__RETRIES=0)");
-
-                        if (!string.IsNullOrWhiteSpace(trunk.DtmfAnnouncement))
-                        {
-                            extensionLines.Add($" same => n(menu),Background({trunk.DtmfAnnouncement})");
-                        }
-
-                        extensionLines.Add(" same => n,WaitExten(5)");
-                        extensionLines.Add("");
-
-                        foreach (var entry in trunk.DtmfMenuEntries)
-                        {
-                            extensionLines.Add($"exten => {entry.Digit},1,Queue(queue-{entry.QueueId})");
-                            extensionLines.Add($"exten => {entry.Digit},n,Hangup()");
-                            extensionLines.Add("");
-                        }
-
-                        // Timeout handler - replay menu up to 3 times
-                        extensionLines.Add("exten => t,1,Set(__RETRIES=$[${RETRIES}+1])");
-                        extensionLines.Add(" same => n,GotoIf($[${RETRIES}<3]?s,menu)");
-                        extensionLines.Add(" same => n,Hangup()");
-                        extensionLines.Add("");
-
-                        // Invalid key handler - same as timeout
-                        extensionLines.Add("exten => i,1,Goto(t,1)");
-                        extensionLines.Add("");
-                    }
                 }
 
                 extensionLines.Add(";=============================================");
@@ -420,6 +398,17 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     extensionLines.Add("include => out-trunk-" + trunk.Id);
                     extensionLines.Add("");
                 }
+            }
+
+            var queueIds = queues.Select(x => x.Id).ToHashSet();
+            foreach (var callFlow in callFlows)
+            {
+                extensionLines.AddRange(CallFlowDialplanBuilder.Build(
+                    callFlow.Id,
+                    callFlow.Slug,
+                    callFlow.Name,
+                    CallFlowDefinition.Parse(callFlow.DefinitionJson),
+                    queueIds));
             }
 
             const string extensionsFilePath = $"{AsteriskConfigPath}/extensions.conf";

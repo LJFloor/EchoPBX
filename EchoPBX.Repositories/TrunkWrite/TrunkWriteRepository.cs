@@ -1,11 +1,8 @@
 using EchoPBX.Data;
-using EchoPBX.Data.Dto;
-using EchoPBX.Data.Helpers;
 using EchoPBX.Data.Models;
 using EchoPBX.Data.Workers.Asterisk;
 using EFCore.BulkExtensions;
 using Microsoft.EntityFrameworkCore;
-using Serilog;
 
 namespace EchoPBX.Repositories.TrunkWrite;
 
@@ -23,36 +20,19 @@ public class TrunkWriteRepository(EchoDbContext dbContext, IAsteriskWorker aster
             Codecs = string.Join(',', trunk.Codecs),
             Cid = trunk.Cid,
             IncomingCallBehaviour = trunk.IncomingCallBehaviour,
-            QueueId = trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToQueue ? trunk.QueueId : null
+            QueueId = trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToQueue ? trunk.QueueId : null,
+            CallFlowId = trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToCallFlow ? trunk.CallFlowId : null,
         };
 
         await dbContext.BulkInsertAsync([entity], new BulkConfig { SetOutputIdentity = true });
 
-        switch (entity.IncomingCallBehaviour)
+        if (entity.IncomingCallBehaviour == IncomingCallBehaviour.RingSpecificExtensions)
         {
-            case IncomingCallBehaviour.RingSpecificExtensions:
-                await dbContext.BulkInsertAsync(trunk.Extensions.Select(ext => new TrunkExtension
-                {
-                    TrunkId = entity.Id,
-                    ExtensionNumber = ext
-                }).ToList());
-                break;
-            case IncomingCallBehaviour.DtmfMenu:
+            await dbContext.BulkInsertAsync(trunk.Extensions.Select(ext => new TrunkExtension
             {
-                await SaveDtmfAnnouncement(entity.Id, trunk.DtmfAnnouncement);
-
-                if (trunk.DtmfMenuEntries.Count > 0)
-                {
-                    await dbContext.BulkInsertAsync(trunk.DtmfMenuEntries.Select(e => new DtmfMenuEntry
-                    {
-                        TrunkId = entity.Id,
-                        Digit = e.Digit,
-                        QueueId = e.QueueId,
-                    }).ToList());
-                }
-
-                break;
-            }
+                TrunkId = entity.Id,
+                ExtensionNumber = ext
+            }).ToList());
         }
 
         await transaction.CommitAsync();
@@ -73,6 +53,7 @@ public class TrunkWriteRepository(EchoDbContext dbContext, IAsteriskWorker aster
                 .SetProperty(p => p.Cid, trunk.Cid)
                 .SetProperty(p => p.IncomingCallBehaviour, trunk.IncomingCallBehaviour)
                 .SetProperty(p => p.QueueId, trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToQueue ? trunk.QueueId : null)
+                .SetProperty(p => p.CallFlowId, trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToCallFlow ? trunk.CallFlowId : null)
             );
 
         if (updatedRows == 0)
@@ -90,29 +71,6 @@ public class TrunkWriteRepository(EchoDbContext dbContext, IAsteriskWorker aster
             }).ToList());
         }
 
-        // Handle DTMF menu entries
-        await dbContext.Set<DtmfMenuEntry>().Where(x => x.TrunkId == trunk.Id).ExecuteDeleteAsync();
-
-        if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.DtmfMenu)
-        {
-            await SaveDtmfAnnouncement(trunk.Id, trunk.DtmfAnnouncement);
-
-            if (trunk.DtmfMenuEntries.Count > 0)
-            {
-                await dbContext.BulkInsertAsync(trunk.DtmfMenuEntries.Select(e => new DtmfMenuEntry
-                {
-                    TrunkId = trunk.Id,
-                    Digit = e.Digit,
-                    QueueId = e.QueueId,
-                }).ToList());
-            }
-        }
-        else
-        {
-            // Clean up announcement file if switching away from DTMF
-            await CleanupDtmfAnnouncement(trunk.Id);
-        }
-
         await asterisk.ApplyChanges();
     }
 
@@ -127,65 +85,6 @@ public class TrunkWriteRepository(EchoDbContext dbContext, IAsteriskWorker aster
             throw new InvalidOperationException($"Trunk with ID {id} not found.");
         }
 
-        // Clean up sound files
-        var soundDir = Path.Combine(Constants.DataDirectory, "sounds", $"trunk-{id}");
-        if (Directory.Exists(soundDir))
-        {
-            try
-            {
-                Directory.Delete(soundDir, true);
-            }
-            catch (Exception ex)
-            {
-                Log.Logger.Warning("Error deleting the sounds directory for trunk {TrunkId}: {message}", id, ex.Message);
-            }
-        }
-
         await asterisk.ApplyChanges();
-    }
-
-    private async Task SaveDtmfAnnouncement(int trunkId, string? announcement)
-    {
-        if (string.IsNullOrEmpty(announcement))
-        {
-            await CleanupDtmfAnnouncement(trunkId);
-            return;
-        }
-
-        if (announcement.StartsWith("data:"))
-        {
-            var baseDir = Path.Combine(Constants.DataDirectory, "sounds", $"trunk-{trunkId}");
-            Directory.CreateDirectory(baseDir);
-            var announcementPath = Path.Combine(baseDir, "dtmf-announcement.wav");
-            var content = UploadedFile.FromDataUrl(announcement).Content;
-            await FfmpegHelper.SaveAsWav(content, announcementPath);
-
-            await dbContext.Trunks
-                .Where(x => x.Id == trunkId)
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(t => t.DtmfAnnouncement, announcementPath.Replace(".wav", ""))
-                );
-        }
-        // If it doesn't start with "data:", it's an existing path -- leave it unchanged
-    }
-
-    private async Task CleanupDtmfAnnouncement(int trunkId)
-    {
-        await dbContext.Trunks
-            .Where(x => x.Id == trunkId)
-            .ExecuteUpdateAsync(s => s.SetProperty(t => t.DtmfAnnouncement, (string?)null));
-
-        var announcementPath = Path.Combine(Constants.DataDirectory, "sounds", $"trunk-{trunkId}", "dtmf-announcement.wav");
-        if (File.Exists(announcementPath))
-        {
-            try
-            {
-                File.Delete(announcementPath);
-            }
-            catch (Exception ex)
-            {
-                Log.Logger.Warning("Error deleting DTMF announcement for trunk {TrunkId}: {message}", trunkId, ex.Message);
-            }
-        }
     }
 }

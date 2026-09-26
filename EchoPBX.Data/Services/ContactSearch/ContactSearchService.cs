@@ -8,6 +8,13 @@ public class ContactSearchService(EchoDbContext dbContext) : IContactSearchServi
     public async Task<Models.Contact?> Search(string phoneNumber)
     {
         var cleanedNumber = StringHelper.CleanPhoneNumber(phoneNumber);
+
+        // "anonymous" and the like clean up to nothing, and every number ends with nothing.
+        if (cleanedNumber.Length == 0)
+        {
+            return null;
+        }
+
         if (cleanedNumber.Length > 7)
         {
             cleanedNumber = cleanedNumber[^7..];

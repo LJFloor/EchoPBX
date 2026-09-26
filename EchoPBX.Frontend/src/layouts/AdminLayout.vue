@@ -85,6 +85,7 @@ const { t } = useTranslation();
             <NavButton href="/admin/extensions" :label="t('label.extensions')" />
             <NavButton href="/admin/trunks" :label="t('label.trunks')" />
             <NavButton href="/admin/queues" :label="t('label.queues')" />
+            <NavButton href="/admin/call-flows" :label="t('label.call-flows')" />
             <div class="grow"></div>
             <NavButton :label="t('button.change-password')" @click="changePasswordModalOpen = true" />
             <NavButton :label="t('button.logout')" @click="logout" />
@@ -96,7 +97,7 @@ const { t } = useTranslation();
         </div>
     </div>
 
-    <Modal v-if="changePasswordModalOpen" @close="closeChangePasswordModal" :title="t('button.change-password')"">
+    <Modal v-if="changePasswordModalOpen" @close="closeChangePasswordModal" :title="t('button.change-password')">
         <SetPassword v-model:password="newPassword" v-model:valid="changePasswordValid" />
         <template #footer>
             <Btn :loading="changePasswordLoading" :disabled="!changePasswordValid" @click="putNewPassword" :label="t('button.save')" />

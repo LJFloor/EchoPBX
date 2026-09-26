@@ -21,7 +21,7 @@ public class EchoDbContext : DbContext
 
     public DbSet<Trunk> Trunks { get; set; }
 
-    public DbSet<DtmfMenuEntry> DtmfMenuEntries { get; set; }
+    public DbSet<CallFlow> CallFlows { get; set; }
 
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -50,17 +50,9 @@ public class EchoDbContext : DbContext
             j => j.HasKey(t => new { t.TrunkId, t.ExtensionNumber })
         );
 
-        modelBuilder.Entity<DtmfMenuEntry>().HasKey(x => new { x.TrunkId, x.Digit });
-        modelBuilder.Entity<DtmfMenuEntry>()
-            .HasOne(x => x.Trunk)
-            .WithMany(x => x.DtmfMenuEntries)
-            .HasForeignKey(x => x.TrunkId)
-            .OnDelete(DeleteBehavior.Cascade);
-        modelBuilder.Entity<DtmfMenuEntry>()
-            .HasOne(x => x.Queue)
-            .WithMany()
-            .HasForeignKey(x => x.QueueId)
-            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<Trunk>().HasOne(x => x.CallFlow).WithMany().HasForeignKey(x => x.CallFlowId).OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<CallFlow>().HasIndex(x => x.Slug).IsUnique();
 
         modelBuilder.Entity<SystemSetting>().HasKey(x => x.Name);
         modelBuilder.Entity<SystemSetting>().HasData([

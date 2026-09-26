@@ -54,12 +54,7 @@ public class TrunkReadRepository(EchoDbContext dbContext, IAsteriskWorker asteri
             Extensions = x.Extensions!.Select(te => te.ExtensionNumber).ToList(),
             QueueId = x.QueueId,
             IncomingCallBehaviour = x.IncomingCallBehaviour,
-            DtmfAnnouncement = x.DtmfAnnouncement == null ? null : StringHelper.BuildSoundUrl(x.DtmfAnnouncement),
-            DtmfMenuEntries = x.DtmfMenuEntries.Select(e => new Models.DtmfMenuEntryDto
-            {
-                Digit = e.Digit,
-                QueueId = e.QueueId,
-            }).ToList()
+            CallFlowId = x.CallFlowId,
         });
     }
 }

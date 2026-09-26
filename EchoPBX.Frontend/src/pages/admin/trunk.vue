@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Card from '~/components/Card/Card.vue';
 import Btn from '~/components/Button/Btn.vue';
@@ -11,8 +11,8 @@ import type { Extension } from '~/types/Extension';
 import ExtensionList from '~/components/ExtensionList.vue';
 import Select from '~/components/Select/Select.vue';
 import type { Queue } from '~/types/Queue';
+import type { CallFlow } from '~/types/CallFlow';
 import AdminLayout from '~/layouts/AdminLayout.vue';
-import FileInput from '~/components/Input/FileInput.vue';
 import { useTranslation } from '~/composables/useTranslation';
 import { useMemo } from '~/composables/useMemo';
 
@@ -23,23 +23,8 @@ const { t } = useTranslation();
 const trunk = ref<Trunk>();
 const extensions = useMemo<Extension[]>('extensions', () => []);
 const queues = useMemo<Queue[]>('queues', () => []);
+const callFlows = useMemo<CallFlow[]>('call-flows', () => []);
 const isSaving = ref(false);
-
-const availableDtmfDigits = computed(() => {
-    if (!trunk.value) return [];
-    const usedDigits = new Set(trunk.value.dtmfMenuEntries.map(e => e.digit));
-    return [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].filter(d => !usedDigits.has(d));
-});
-
-function addDtmfEntry() {
-    if (trunk.value) {
-        trunk.value.dtmfMenuEntries.push({
-            digit: availableDtmfDigits.value[0]!,
-            queueId: undefined!,
-            label: undefined
-        });
-    }
-}
 
 onMounted(async () => {
     document.addEventListener('keydown', (e) => {
@@ -60,6 +45,12 @@ onMounted(async () => {
             queues.value = data;
         });
 
+    await fetch(`/api/call-flows`)
+        .then(res => res.json())
+        .then(data => {
+            callFlows.value = data;
+        });
+
     if (route.params.trunkId === 'new') {
         document.title = t('label.new-trunk');
         trunk.value = {
@@ -73,8 +64,6 @@ onMounted(async () => {
             connected: false,
             incomingCallBehaviour: IncomingCallBehaviour.Ignore,
             extensions: [],
-            dtmfAnnouncement: undefined,
-            dtmfMenuEntries: [],
         };
         return;
     } else {
@@ -176,52 +165,15 @@ async function save() {
 
                             <div>
                                 <RadioButton v-model="trunk.incomingCallBehaviour"
-                                    :value="IncomingCallBehaviour.DtmfMenu" :label="t('label.dtmf-menu')"
-                                    :description="t('label.dtmf-menu-description')" />
-                                <div class="pl-8 space-y-4"
-                                    v-if="trunk.incomingCallBehaviour === IncomingCallBehaviour.DtmfMenu">
-                                    <div>
-                                        <div class="font-semibold mb-1">{{ t('label.announcement') }}:</div>
-                                        <FileInput accept="audio/*"
-                                            @upload="trunk.dtmfAnnouncement = $event.map(file => file.dataUrl)[0]" />
-                                        <div v-if="trunk.dtmfAnnouncement" class="flex items-center gap-1 mt-2">
-                                            <audio :src="trunk.dtmfAnnouncement" controls class="w-full"></audio>
-                                            <Btn design="icon-danger-secondary" icon="mdi:delete"
-                                                @click="trunk.dtmfAnnouncement = undefined" />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div class="font-semibold mb-1">{{ t('label.dtmf-digits') }}:</div>
-                                        <div class="space-y-2">
-                                            <div v-for="entry in trunk.dtmfMenuEntries" :key="entry.digit"
-                                                class="flex items-center gap-2">
-                                                <div class="w-20">
-                                                    <Select v-model="entry.digit"
-                                                        :items="[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].filter(d => d === entry.digit || availableDtmfDigits.includes(d))">
-                                                        <template #item="{ value }">
-                                                            {{ value }}
-                                                        </template>
-                                                    </Select>
-                                                </div>
-                                                <Select v-model="entry.queueId" :items="queues.map(q => q.id)"
-                                                    class="flex-1">
-                                                    <template #item="{ value }">
-                                                        {{(queues.find(q => q.id === value)?.name) ||
-                                                            t('label.unknown-queue')}}
-                                                    </template>
-                                                </Select>
-                                                <Btn design="icon-danger-secondary" icon="mdi:delete"
-                                                    @click="trunk.dtmfMenuEntries = trunk.dtmfMenuEntries.filter(e => e !== entry)" />
-                                            </div>
-                                            <Btn v-if="trunk.dtmfMenuEntries.length < 10 && queues.length > 0"
-                                                design="banner" icon="mdi:plus" :label="t('button.add-choice')"
-                                                @click="addDtmfEntry" />
-                                            <div v-if="queues.length === 0" class="text-sm text-gray-500 italic">
-                                                {{ t('message.no-queues-created') }}
-                                            </div>
-                                        </div>
-                                    </div>
+                                    :value="IncomingCallBehaviour.SendToCallFlow" :label="t('label.send-to-call-flow')"
+                                    :description="t('label.send-to-call-flow-description')" />
+                                <div class="pl-8">
+                                    <Select v-model="trunk.callFlowId" :items="callFlows.map(x => x.id)"
+                                        :disabled="trunk.incomingCallBehaviour !== IncomingCallBehaviour.SendToCallFlow">
+                                        <template #item="{ value }">
+                                            {{ callFlows.find(x => x.id === value)?.name || t('label.unknown-call-flow') }}
+                                        </template>
+                                    </Select>
                                 </div>
                             </div>
                         </div>
