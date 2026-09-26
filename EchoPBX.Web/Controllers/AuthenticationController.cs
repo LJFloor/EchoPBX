@@ -49,6 +49,8 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
             return Unauthorized("Invalid username or password");
         }
 
+        LoginAttempts.TryRemove(ipAddress, out _);
+
         var token = StringHelper.GenerateRandomString(128);
         var expiresAt = DateTimeOffset.UtcNow.AddHours(24).ToUnixTimeSeconds();
         dbContext.Add(new AccessToken
