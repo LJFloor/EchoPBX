@@ -51,14 +51,16 @@ public class CdrWorker(IServiceProvider serviceProvider, ILogger<CdrWorker> logg
 
                 try
                 {
+                    // accountcode, src, dst, dcontext, clid, channel, dstchannel, lastapp, lastdata, start,
+                    // answer, end, duration, billsec, disposition, amaflags
                     var parts = CsvHelper.ParseCsvLine(line);
                     var cdr = new Data.Models.Cdr
                     {
-                        Clid = parts[0],
+                        Clid = parts[4],
                         Source = parts[1],
                         Destination = parts[2],
                         DestinationContext = parts[3],
-                        ChannelName = parts[4],
+                        ChannelName = parts[5],
                         DestinationChannel = parts[6],
                         LastAppExecuted = parts[7],
                         LastAppArguments = parts[8],
