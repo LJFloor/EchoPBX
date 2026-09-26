@@ -2,7 +2,9 @@
 # Backend
 #############
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS backend-build
+# The backend and frontend builds produce architecture independent output, so they run natively
+# on the build machine instead of under emulation
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:8.0 AS backend-build
 
 WORKDIR /src
 
@@ -19,7 +21,7 @@ RUN rm /build/appsettings.Development.json
 # Frontend
 #############
 
-FROM node:24 AS frontend-build
+FROM --platform=$BUILDPLATFORM node:24 AS frontend-build
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
