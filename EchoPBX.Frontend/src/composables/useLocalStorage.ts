@@ -26,7 +26,8 @@ export function useLocalStorage<T>(key: string, defaultValue: T) {
         localStorage.setItem(key, JSON.stringify(newValue));
     }, { deep: true });
 
-    document.addEventListener('storage', (event) => {
+    // storage only fires on window, and only for changes made in other tabs
+    window.addEventListener('storage', (event) => {
         if (!(event instanceof StorageEvent)) return;
 
         if (event.key === key && event.newValue && event.newValue !== JSON.stringify(data.value) && event.storageArea === localStorage) {
