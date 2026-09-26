@@ -35,6 +35,22 @@ public class WorkerManager(IServiceProvider provider, ILogger<WorkerManager> log
             });
         }
     }
+
+    public async Task StopAsync()
+    {
+        foreach (var worker in _workers)
+        {
+            try
+            {
+                logger.LogInformation("Stopping worker {Name}", worker.GetType().Name);
+                await worker.StopAsync();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, ex.Message);
+            }
+        }
+    }
 }
 
 public static class WorkerManagerExtensions

@@ -117,6 +117,7 @@ try
     
     var workerManager = scope.ServiceProvider.GetRequiredService<WorkerManager>();
     workerManager.Start();
+    app.Lifetime.ApplicationStopping.Register(() => workerManager.StopAsync().GetAwaiter().GetResult());
 
     app.Run();
 }
