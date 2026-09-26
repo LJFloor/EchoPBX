@@ -22,6 +22,7 @@ const { t } = useTranslation();
 const queue = ref<Queue>();
 const extensions = ref<Extension[]>();
 const isSaving = ref(false);
+const error = ref<string>();
 
 onMounted(async () => {
     fetch('/api/extensions')
@@ -61,7 +62,8 @@ async function save() {
     if (!queue.value) return;
 
     isSaving.value = true;
-    await fetch(`/api/queues`, {
+    error.value = undefined;
+    const response = await fetch(`/api/queues`, {
         method: route.params.queueId === 'new' ? 'POST' : 'PUT',
         headers: {
             'Content-Type': 'application/json'
@@ -70,6 +72,14 @@ async function save() {
     });
 
     isSaving.value = false;
+
+    if (!response.ok) {
+        // A 4xx carries a message meant for the user, a 5xx only a stack trace at best
+        const message = response.status < 500 ? await response.text() : '';
+        error.value = message || t('message.something-went-wrong');
+        return;
+    }
+
     router.push('/admin/queues');
 }
 </script>
@@ -81,6 +91,11 @@ async function save() {
                 <Btn @click="router.push('/admin/queues')" design="secondary" :label="t('button.cancel')" />
                 <Btn type="submit" :loading="isSaving" design="primary" :label="t('button.save')" />
             </div>
+
+            <div v-if="error" class="bg-red-50 border border-red-300 text-red-700 rounded px-4 py-2">
+                {{ error }}
+            </div>
+
             <Card>
                 <div class="p-4">
                     <div class="grid grid-cols-2 gap-4">
