@@ -42,7 +42,7 @@ onMounted(async () => {
             timeout: 30,
             wrapUpTime: 0,
             id: undefined!,
-            maxlength: 0,
+            maxLength: 0,
             retryInterval: 0,
             musicOnHold: [],
         };
@@ -100,7 +100,7 @@ async function save() {
                         <Textbox type="number" v-model.number="queue.wrapUpTime" />
 
                         <div class="h-8 flex items-center">{{ t('label.maximum-size') }}:</div>
-                        <Textbox type="number" v-model.number="queue.maxlength" />
+                        <Textbox type="number" v-model.number="queue.maxLength" />
 
                         <div class="h-8 flex items-center">{{ t('label.announcement') }}:</div>
                         <div class="space-y-2">
