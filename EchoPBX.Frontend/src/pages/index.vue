@@ -4,6 +4,9 @@ import { onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import Btn from '~/components/Button/Btn.vue';
 import Textbox from '~/components/Input/Textbox.vue';
+import { useTranslation } from '~/composables/useTranslation';
+
+const { t } = useTranslation();
 
 const router = useRouter();
 
@@ -29,9 +32,9 @@ async function login() {
     if (response.ok) {
         router.push('/admin/dashboard');
     } else if (response.status === 401) {
-        error.value = 'Invalid username or password.';
+        error.value = t('message.invalid-login');
     } else {
-        error.value = await response.text() || 'An unknown error occurred.';
+        error.value = await response.text() || t('message.something-went-wrong');
     }
 }
 
@@ -56,21 +59,21 @@ onMounted(async () => {
         <div class="bg-white rounded-bl rounded-br border border-gray-200 p-8">
             <form @submit.prevent="login" class="space-y-4">
                 <div class="space-y-2">
-                    <div class="text-lg font-semibold">Welcome!</div>
-                    <div class="text-sm text-gray-600">Enter your username and password to sign in to the administration panel.</div>
+                    <div class="text-lg font-semibold">{{ t('login.welcome') }}</div>
+                    <div class="text-sm text-gray-600">{{ t('login.intro') }}</div>
                 </div>
 
                 <div class="space-y-2">
-                    <div class="font-semibold">Username:</div>
+                    <div class="font-semibold">{{ t('label.username') }}:</div>
                     <Textbox v-model="username" type="text" :required="true" />
                 </div>
 
                 <div class="space-y-2">
-                    <div class="font-semibold">Password:</div>
+                    <div class="font-semibold">{{ t('label.password') }}:</div>
                     <Textbox v-model="password" type="password" :required="true" />
                 </div>
 
-                <Btn type="submit" design="primary" :label="'Sign In'" :loading="loading" />
+                <Btn type="submit" design="primary" :label="t('button.login')" :loading="loading" />
             </form>
         </div>
 

@@ -107,8 +107,8 @@ async function save() {
     <AdminLayout>
         <form @submit.prevent="save" v-if="trunk" class="space-y-2">
             <div class="flex justify-end gap-2">
-                <Btn @click="router.push('/admin/trunks')" design="secondary" label="Annuleren" />
-                <Btn type="submit" :loading="isSaving" design="primary" label="Opslaan" />
+                <Btn @click="router.push('/admin/trunks')" design="secondary" :label="t('button.cancel')" />
+                <Btn type="submit" :loading="isSaving" design="primary" :label="t('button.save')" />
             </div>
 
             <div v-if="error" class="bg-red-50 border border-red-300 text-red-700 rounded px-4 py-2">

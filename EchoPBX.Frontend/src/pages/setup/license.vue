@@ -5,6 +5,9 @@ import Btn from '~/components/Button/Btn.vue';
 import Checkbox from '~/components/Checkbox/Checkbox.vue';
 import { useLocalStorage } from '~/composables/useLocalStorage';
 import SetupLayout from '~/layouts/SetupLayout.vue';
+import { useTranslation } from '~/composables/useTranslation';
+
+const { t } = useTranslation();
 
 const router = useRouter();
 const licenseText = ref();
@@ -20,19 +23,19 @@ onMounted(async () => {
 </script>
 
 <template>
-    <SetupLayout title="License agreement">
+    <SetupLayout :title="t('setup.license-title')">
         <p>
-            Please accept the license agreement to continue the setup.
+            {{ t('setup.license-intro') }}
         </p>
 
         <div class="border border-gray-200 p-4 overflow-y-scroll whitespace-pre-wrap bg-gray-50">
-            {{ licenseText || 'Loading license text...' }}
+            {{ licenseText || t('setup.license-loading') }}
         </div>
 
-        <Checkbox v-if="licenseText" label="I accept the license agreement" v-model:checked="licenseAccepted" />
+        <Checkbox v-if="licenseText" :label="t('setup.license-accept')" v-model:checked="licenseAccepted" />
         
         <template #footer>
-            <Btn :disabled="!licenseAccepted" label="Next" @click="router.push('/setup/create-admin')" />
+            <Btn :disabled="!licenseAccepted" :label="t('button.next')" @click="router.push('/setup/create-admin')" />
         </template>
     </SetupLayout>
 </template> 

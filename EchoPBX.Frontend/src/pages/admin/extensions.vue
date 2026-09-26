@@ -89,10 +89,10 @@ document.title = t('label.extensions');
                     {{trunks.find(t => t.id === row.outgoingTrunkId)?.name }}
                 </template>
                 <template #actions="{ row }">
-                    <DropdownButton :disabled="!row?.connected" icon="mdi:crosshairs-question" label="Identificeren"
-                        title="Rings the extension for a few seconds, so you can identify the phone it is connected to."
+                    <DropdownButton :disabled="!row?.connected" icon="mdi:crosshairs-question" :label="t('button.identify')"
+                        :title="t('label.identify-description')"
                         design="primary" @click="ring(row)" />
-                    <DropdownButton icon="mdi:delete" label="Delete" design="danger" @click="deleteExtension(row)" />
+                    <DropdownButton icon="mdi:delete" :label="t('button.delete')" design="danger" @click="deleteExtension(row)" />
                 </template>
             </DataGrid>
 

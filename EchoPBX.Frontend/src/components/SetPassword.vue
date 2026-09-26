@@ -2,6 +2,9 @@
 import { computed, ref, watch } from 'vue';
 import Textbox from './Input/Textbox.vue';
 import { Icon } from '@iconify/vue';
+import { useTranslation } from '~/composables/useTranslation';
+
+const { t } = useTranslation();
 
 const txtPassword = ref('');
 const txtConfirmPassword = ref('');
@@ -39,10 +42,10 @@ watch([txtPassword, txtConfirmPassword], validate, { immediate: true });
 
 <template>
     <div class="grid grid-cols-2 gap-4">
-        <div>Password:</div>
+        <div>{{ t('label.password') }}:</div>
         <Textbox required type="password" v-model="txtPassword" />
 
-        <div>Confirm Password:</div>
+        <div>{{ t('password.confirm') }}:</div>
         <Textbox required type="password" v-model="txtConfirmPassword" />
 
         <div></div>
@@ -50,23 +53,23 @@ watch([txtPassword, txtConfirmPassword], validate, { immediate: true });
             <ul class="list-inside">
                 <li :class="hasLetter ? 'text-green-600' : 'text-red-600'">
                     <Icon :icon="hasLetter ? 'mdi:check' : 'mdi:close'" class="inline size-4 mr-1" />
-                    At least one letter
+                    {{ t('password.rule-letter') }}
                 </li>
                 <li :class="hasNumber ? 'text-green-600' : 'text-red-600'">
                     <Icon :icon="hasNumber ? 'mdi:check' : 'mdi:close'" class="inline size-4 mr-1" />
-                    At least one number
+                    {{ t('password.rule-number') }}
                 </li>
                 <li :class="hasSpecialChar ? 'text-green-600' : 'text-red-600'">
                     <Icon :icon="hasSpecialChar ? 'mdi:check' : 'mdi:close'" class="inline size-4 mr-1" />
-                    At least one special character
+                    {{ t('password.rule-special-char') }}
                 </li>
                 <li :class="isMinLength ? 'text-green-600' : 'text-red-600'">
                     <Icon :icon="isMinLength ? 'mdi:check' : 'mdi:close'" class="inline size-4 mr-1" />
-                    Minimum length of 10 characters
+                    {{ t('password.rule-min-length') }}
                 </li>
                 <li :class="txtPassword === txtConfirmPassword ? 'text-green-600' : 'text-red-600'">
                     <Icon :icon="txtPassword === txtConfirmPassword ? 'mdi:check' : 'mdi:close'" class="inline size-4 mr-1" />
-                    Passwords match
+                    {{ t('password.rule-match') }}
                 </li>
             </ul>
         </div>

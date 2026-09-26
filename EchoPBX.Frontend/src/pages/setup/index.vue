@@ -3,29 +3,31 @@ import { Icon } from '@iconify/vue';
 import { useRouter } from 'vue-router';
 import Btn from '~/components/Button/Btn.vue';
 import SetupLayout from '~/layouts/SetupLayout.vue';
+import { useTranslation } from '~/composables/useTranslation';
+
+const { t } = useTranslation();
 
 const router = useRouter();
 </script>
 
 <template>
-    <SetupLayout title="Welcome to EchoPBX!">
+    <SetupLayout :title="t('setup.welcome-title')">
         <p>
-            Hi! Thank you for trying out EchoPBX.
+            {{ t('setup.welcome-thanks') }}
         </p>
         <p>
-            You got through the docker installation part, so let's set up the initial configuration. Click "Next" to continue.
+            {{ t('setup.welcome-intro') }}
         </p>
         <p>
-            Please note that <b>EchoPBX is still in BETA!</b> New features are being added,
-            and new bugs may be introduced. Your feedback is very much appreciated!
+            <b>{{ t('setup.beta-notice') }}</b> {{ t('setup.beta-feedback') }}
         </p>
         <p class="flex items-center gap-0.5 text-blue-600">
             <Icon icon="mdi:open-in-new" />
-            <a href="https://github.com/LJFloor/EchoPBX/issues" target="_blank" rel="noopener" class="underline">Report issues or suggest features on GitHub</a>
+            <a href="https://github.com/LJFloor/EchoPBX/issues" target="_blank" rel="noopener" class="underline">{{ t('setup.report-issues') }}</a>
         </p>
 
         <template #footer>
-            <Btn label="Next" @click="router.push('/setup/license')" />
+            <Btn :label="t('button.next')" @click="router.push('/setup/license')" />
         </template>
     </SetupLayout>
 </template> 
