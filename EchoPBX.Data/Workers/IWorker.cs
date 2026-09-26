@@ -9,4 +9,9 @@ public interface  IWorker
     /// Executes the worker's tasks asynchronously. You can block this method using the provided CancellationToken to stop execution when needed.
     /// </summary>
     public Task ExecuteAsync(CancellationToken stoppingToken);
+
+    /// <summary>
+    /// Stops anything the worker started. Called when the application shuts down.
+    /// </summary>
+    public Task StopAsync() => Task.CompletedTask;
 }

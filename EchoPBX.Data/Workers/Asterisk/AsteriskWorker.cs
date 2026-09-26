@@ -19,6 +19,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     private readonly ILogger<AsteriskWorker> _logger;
     private readonly IAmiClient _amiClient;
     private readonly Process _asteriskProcess;
+    private bool _asteriskStarted;
     private readonly IContactSearchService _contactSearchService;
 
     /// <summary>
@@ -93,20 +94,25 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             await stopCommand.WaitForExitAsync(stoppingToken);
 
             _logger.LogInformation("Stop command exited with code {ExitCode}", stopCommand.ExitCode);
-            if (stopCommand.ExitCode == 0)
-            {
-                _logger.LogInformation("Existing asterisk process(es) stopped successfully.");
-            }
-            else
+            if (stopCommand.ExitCode != 0)
             {
                 _logger.LogError("Failed to stop existing asterisk process(es). Exit code: {ExitCode}", stopCommand.ExitCode);
                 throw new Exception("Asterisk is already running, and the attempt to stop it failed.");
             }
+
+            // The stop command returns before asterisk has exited, while it may still hold its ports
+            foreach (var proc in asteriskProcesses)
+            {
+                await WaitForExitOrKill(proc, TimeSpan.FromSeconds(10));
+            }
+
+            _logger.LogInformation("Existing asterisk process(es) stopped successfully.");
         }
 
         await WriteConfiguration();
         _logger.LogInformation("Starting asterisk process ({Path})...", _asteriskProcess.StartInfo.FileName);
         _asteriskProcess.Start();
+        _asteriskStarted = true;
         _ = Task.Run(async () =>
         {
             await Task.Delay(500, stoppingToken);
@@ -136,6 +142,39 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
         }, stoppingToken);
 
         _ = MonitorOngoingCalls();
+    }
+
+    /// <summary>
+    /// Stops asterisk, so it does not keep running after EchoPBX exits.
+    /// </summary>
+    public async Task StopAsync()
+    {
+        if (!_asteriskStarted || _asteriskProcess.HasExited) return;
+
+        IsReady = false;
+        _logger.LogInformation("Stopping asterisk...");
+
+        // Not awaited: if asterisk hangs, the CLI command hangs with it
+        _ = Execute("core stop now");
+        await WaitForExitOrKill(_asteriskProcess, TimeSpan.FromSeconds(5));
+    }
+
+    /// <summary>
+    /// Waits for a process to exit, and kills it if it takes longer than <paramref name="timeout"/>.
+    /// </summary>
+    private async Task WaitForExitOrKill(Process process, TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        try
+        {
+            await process.WaitForExitAsync(cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("Asterisk process (PID: {Pid}) did not exit in time, killing it", process.Id);
+            process.Kill();
+            await process.WaitForExitAsync();
+        }
     }
 
     /// <inheritdoc />
