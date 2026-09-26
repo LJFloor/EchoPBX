@@ -141,6 +141,9 @@ async function save() {
                             <Checkbox v-model="trunk.codecs" value="ulaw" label="ulaw" />
                             <Checkbox v-model="trunk.codecs" value="alaw" label="alaw" />
                             <Checkbox v-model="trunk.codecs" value="g729" label="g729" />
+                            <Checkbox v-model="trunk.codecs" value="g722" label="g722" />
+                            <Checkbox v-model="trunk.codecs" value="opus" label="opus" />
+                            <div class="text-gray-500 mt-0.5">{{ t('label.codecs-hd-explanation') }}</div>
                         </div>
 
                         <div class="h-8 flex items-center">{{ t('label.when-a-call-comes-in') }}:</div>

@@ -1,6 +1,7 @@
 using EchoPBX.Data;
 using EchoPBX.Data.Clients.Ami;
 using EchoPBX.Data.Clients.Stun;
+using EchoPBX.Data.Helpers;
 using EchoPBX.Data.Services.ContactSearch;
 using EchoPBX.Data.Services.Settings;
 using EchoPBX.Data.Workers;
@@ -29,7 +30,14 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
-    builder.WebHost.ConfigureKestrel(serverOptions => { serverOptions.ListenAnyIP(Constants.HttpPort); });
+    var certificate = CertificateHelper.LoadOrCreate();
+    Log.Information("HTTPS certificate: {Subject}, valid until {NotAfter}", certificate.Subject, certificate.NotAfter);
+
+    builder.WebHost.ConfigureKestrel(serverOptions =>
+    {
+        serverOptions.ListenAnyIP(Constants.HttpPort);
+        serverOptions.ListenAnyIP(Constants.HttpsPort, listenOptions => listenOptions.UseHttps(certificate));
+    });
 
     builder.Services
         .AddSerilog()
@@ -72,10 +80,30 @@ try
     app.MapFallbackToFile("index.html");
 
     Directory.CreateDirectory(Path.Combine(Constants.DataDirectory, "sounds"));
+    var soundsProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.Combine(Constants.DataDirectory, "sounds"));
+
+    // Uploads are stored as an 8 kHz .wav with a 16 kHz .wav16 next to it. The dashboard keeps
+    // using the .wav URL, since that is how the save code recognises a sound, but gets the
+    // better sounding file when there is one.
+    app.Use(async (context, next) =>
+    {
+        if (context.Request.Path.StartsWithSegments("/sounds", out var subpath)
+            && subpath.Value!.EndsWith(".wav")
+            && soundsProvider.GetFileInfo(subpath.Value + "16").Exists)
+        {
+            context.Request.Path += "16";
+        }
+
+        await next();
+    });
+
+    var soundContentTypes = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+    soundContentTypes.Mappings[".wav16"] = "audio/wav";
     app.UseStaticFiles(new StaticFileOptions
     {
         RequestPath = "/sounds",
-        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(Path.Combine(Constants.DataDirectory, "sounds")),
+        FileProvider = soundsProvider,
+        ContentTypeProvider = soundContentTypes,
         OnPrepareResponse = ctx =>
         {
             ctx.Context.Response.Headers.CacheControl = "no-cache, no-store, must-revalidate";

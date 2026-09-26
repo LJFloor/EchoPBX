@@ -1,0 +1,12 @@
+{
+  "name": "EchoPBX Phone",
+  "short_name": "Phone",
+  "start_url": "/phone",
+  "scope": "/phone",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0284c7",
+  "icons": [
+    { "src": "/echopbx.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

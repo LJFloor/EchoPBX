@@ -1,5 +1,6 @@
 {
   "label": {
+    "codecs-hd-explanation": "g722 and opus give HD audio, but only select them if your provider supports them.",
     "dashboard": "Dashboard",
     "accounts": "Accounts",
     "account": "Account",
@@ -178,6 +179,30 @@
   "login": {
     "welcome": "Welcome!",
     "intro": "Enter your username and password to sign in to the administration panel."
+  },
+  "phone": {
+    "title": "EchoPBX Phone",
+    "open": "Open webphone",
+    "intro": "Sign in with your extension number and SIP password.",
+    "invalid-login": "Invalid extension or password.",
+    "https-required": "The webphone needs a secure connection to use your microphone.",
+    "open-secure": "Open the secure page",
+    "call": "Call",
+    "answer": "Answer",
+    "reject": "Reject",
+    "hangup": "Hang up",
+    "mute": "Mute",
+    "hold": "Hold",
+    "dnd": "Do not disturb",
+    "incoming": "Incoming call",
+    "calling": "Calling...",
+    "on-hold": "On hold",
+    "status-online": "Online",
+    "status-offline": "Offline",
+    "status-connecting": "Connecting...",
+    "status-failed": "Registration failed",
+    "leave-warning": "Leaving this page ends your call.",
+    "sound-locked": "Sound is off until you click or type in this window, so incoming calls will not ring."
   },
   "password": {
     "confirm": "Confirm password",

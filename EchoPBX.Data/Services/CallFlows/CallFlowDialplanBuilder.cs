@@ -42,6 +42,9 @@ public static partial class CallFlowDialplanBuilder
             $"[{context}]",
             $"exten => s,1,NoOp(EchoPBX call flow: {Sanitize(name)})",
             " same => n,Answer()",
+            // Give the audio path a moment to come up before the first sound, or its start is lost.
+            // A webphone in particular still has to finish its encryption handshake after answering.
+            " same => n,Wait(0.5)",
         };
 
         // Walk the graph breadth-first from the start node, giving each node it reaches a

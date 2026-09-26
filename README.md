@@ -41,6 +41,14 @@ sudo docker run -d --name echopbx --restart unless-stopped --network=host -v /op
 
 For running a SoftPhone (a virtual IP phone on your computer), I recommend using [MicroSIP](https://www.microsip.org), as it is fairly easy to setup and I use it myself for testing.
 
+## Webphone
+
+EchoPBX has a phone that runs in the browser. Click "Open webphone" on the login page, or go to `https://(serverip):8741/phone`, and sign in with an extension number and its password. In Chrome and Edge you can install it as an app, which gives it its own small window.
+
+Browsers only allow microphone access on secure (HTTPS) pages, which is why the webphone uses port 8741. By default, EchoPBX creates a self-signed certificate, so your browser shows a warning the first time. To use your own certificate instead, place `cert.pem` and `key.pem` in `/opt/echopbx/certs` and restart the container. You can also put a reverse proxy (such as Caddy or nginx) with a valid certificate in front of port 8740; make sure it forwards WebSockets on `/api/ws`.
+
+The webphone rings along with the other devices of the extension. For now it is meant for use on the local network.
+
 # FAQ
 
 **Can I install EchoPBX on Windows?**

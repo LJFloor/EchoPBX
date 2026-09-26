@@ -128,7 +128,7 @@ public partial class CallFlowWriteRepository(EchoDbContext dbContext, IAsteriskW
 
                 Directory.CreateDirectory(directory);
                 var target = Path.Combine(directory, node.Id);
-                File.Move(source, $"{target}.wav", overwrite: true);
+                FfmpegHelper.MoveWav(source, $"{target}.wav");
                 node.Sound = target;
                 moved = true;
 
@@ -359,7 +359,7 @@ public partial class CallFlowWriteRepository(EchoDbContext dbContext, IAsteriskW
 
             try
             {
-                File.Delete(file);
+                FfmpegHelper.DeleteWav(file);
             }
             catch (Exception ex)
             {

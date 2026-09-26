@@ -117,7 +117,7 @@ public class QueueWriteRepository(EchoDbContext dbContext, IAsteriskWorker aster
                 {
                     try
                     {
-                        File.Delete(Path.Combine(musicDirectory, existingEntry));
+                        FfmpegHelper.DeleteWav(Path.Combine(musicDirectory, existingEntry));
                     }
                     catch (Exception ex)
                     {
@@ -168,10 +168,7 @@ public class QueueWriteRepository(EchoDbContext dbContext, IAsteriskWorker aster
             try
             {
                 var announcementPath = Path.Combine(baseDir, "announcement.wav");
-                if (File.Exists(announcementPath))
-                {
-                    File.Delete(announcementPath);
-                }
+                FfmpegHelper.DeleteWav(announcementPath);
             }
             catch (Exception ex)
             {
