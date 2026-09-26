@@ -74,6 +74,7 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
         if (token != null)
         {
             await dbContext.AccessTokens.Where(x => x.Token == token).ExecuteDeleteAsync();
+            AuthenticationMiddleware.InvalidateToken(token);
         }
 
         HttpContext.Response.Cookies.Delete(AuthenticationMiddleware.TokenCookieName);
