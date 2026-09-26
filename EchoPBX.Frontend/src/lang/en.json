@@ -60,6 +60,7 @@
     "table-live-data": "The data in this table is live",
     "incoming": "Incoming",
     "outgoing": "Outgoing",
+    "internal": "Internal",
     "new-queue": "New queue",
     "strategy": "Strategy",
     "timeout-for-extension-seconds": "Extension timeout",

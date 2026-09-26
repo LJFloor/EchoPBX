@@ -784,6 +784,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     if (direction == CallDirection.Incoming)
                     {
                         call.ExternalNumber = amiEvent.GetValueOrDefault("CallerIDNum", "Unknown");
+                        call.TrunkId = int.Parse(trunkMatch.Groups[1].Value);
                     }
                     else if (direction == CallDirection.Outgoing)
                     {
@@ -796,25 +797,49 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                             continue;
                         }
 
-                        var extensionName = await _dbContext.Extensions
+                        var caller = await _dbContext.Extensions
                             .AsNoTracking()
                             .Where(x => x.ExtensionNumber == call.ExtensionNumber)
-                            .Select(x => x.DisplayName)
+                            .Select(x => new { x.DisplayName, x.OutgoingTrunkId })
                             .FirstOrDefaultAsync();
 
-                        if (!string.IsNullOrEmpty(extensionName))
+                        if (!string.IsNullOrEmpty(caller?.DisplayName))
                         {
-                            call.ExtensionName = extensionName;
+                            call.ExtensionName = caller.DisplayName;
+                        }
+
+                        // A number that is dialled internally never leaves through a trunk
+                        if (await IsInternalNumber(call.ExternalNumber))
+                        {
+                            call.Direction = CallDirection.Internal;
+                        }
+                        else
+                        {
+                            call.TrunkId = caller?.OutgoingTrunkId;
                         }
                     }
 
-                    var contact = await _contactSearchService.Search(call.ExternalNumber);
-                    if (contact != null)
+                    if (call.Direction != CallDirection.Internal)
                     {
-                        call.ExternalName = contact.Name;
+                        var contact = await _contactSearchService.Search(call.ExternalNumber);
+                        if (contact != null)
+                        {
+                            call.ExternalName = contact.Name;
+                        }
                     }
 
                     OngoingCalls.Add(call);
+                    OngoingCallsUpdated?.Invoke(this, OngoingCalls);
+                }
+
+                // Waiting in a queue
+                else if (amiEvent.EventType == AmiEventType.QueueCallerJoin)
+                {
+                    var call = OngoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
+                    var queueMatch = Regex.Match(amiEvent.GetValueOrDefault("Queue", ""), @"^queue-(\d+)$");
+                    if (call == null || !queueMatch.Success) continue;
+
+                    call.QueueId = int.Parse(queueMatch.Groups[1].Value);
                     OngoingCallsUpdated?.Invoke(this, OngoingCalls);
                 }
 
@@ -866,6 +891,17 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 _logger.LogError(ex, "Error while monitoring ongoing calls");
             }
         }
+    }
+
+    /// <summary>
+    /// Whether a dialled number belongs to an extension or a call flow rather than the outside world.
+    /// </summary>
+    private async Task<bool> IsInternalNumber(string number)
+    {
+        if (!int.TryParse(number, out var internalNumber)) return false;
+
+        return await _dbContext.Extensions.AnyAsync(x => x.ExtensionNumber == internalNumber)
+               || await _dbContext.CallFlows.AnyAsync(x => x.InternalNumber == internalNumber);
     }
 
     /// <summary>

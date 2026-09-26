@@ -62,9 +62,12 @@ onMounted(async () => {
                     <template #cell.directionIcon="{ row }">
                         <Icon v-if="row.direction === CallDirection.Incoming" icon="mdi:phone-incoming" class="text-green-500" />
                         <Icon v-else-if="row.direction === CallDirection.Outgoing" icon="mdi:phone-outgoing" class="text-blue-500" />
+                        <Icon v-else icon="mdi:phone" class="text-gray-500" />
                     </template>
                     <template #cell.direction="{ row }">
-                        {{ row.direction === CallDirection.Incoming ? t('label.incoming') : t('label.outgoing') }}
+                        <template v-if="row.direction === CallDirection.Incoming">{{ t('label.incoming') }}</template>
+                        <template v-else-if="row.direction === CallDirection.Outgoing">{{ t('label.outgoing') }}</template>
+                        <template v-else>{{ t('label.internal') }}</template>
                     </template>
                     <template #cell.duration="{ row }">
                         <span>{{ pickupDurations[row.uniqueId] }}</span>
@@ -79,7 +82,7 @@ onMounted(async () => {
                     </template>
                     <template #cell.state="{ row }">
                         <span v-if="row.state === CallState.Ringing && !row.queueId" class="text-yellow-600 font-semibold">{{ t('label.ringing') }}</span>
-                        <span v-if="row.state === CallState.Ringing && row.queueId" class="text-yellow-600 font-semibold">{{ t('label.in-queue') }}</span>
+                        <span v-else-if="row.state === CallState.Ringing && row.queueId" class="text-yellow-600 font-semibold">{{ t('label.in-queue') }}</span>
                         <span v-else-if="row.state === CallState.Ongoing" class="text-green-600 font-semibold">{{ t('label.connected') }}</span>
                     </template>
 

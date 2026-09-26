@@ -52,8 +52,9 @@ public class AmiClient(ILogger<AmiClient> logger) : IAmiClient
         logger.LogDebug("Sending login action to Ami server");
         await _writer.WriteAsync($"Action: Login\r\nUsername: {Username}\r\nSecret: {Secret}\r\n\r\n");
 
-        logger.LogDebug("Subscribing to call events");
-        await _writer.WriteAsync("Action: Events\r\nEventMask: call\r\n\r\n");
+        // Queue events such as QueueCallerJoin are in the agent class
+        logger.LogDebug("Subscribing to call and agent events");
+        await _writer.WriteAsync("Action: Events\r\nEventMask: call,agent\r\n\r\n");
         await _writer.FlushAsync(cancellationToken);
     }
 
