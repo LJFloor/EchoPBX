@@ -248,6 +248,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             x.Name,
             x.Username,
             x.Password,
+            x.Codecs,
             x.IncomingCallBehaviour,
             Extensions = x.Extensions.Select(y => y.ExtensionNumber),
             Queue = x.Queue == null
@@ -631,7 +632,8 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     pjsip.Add("language=nl");
                     pjsip.Add("transport=transport-udp");
                     pjsip.Add("disallow=all");
-                    pjsip.Add("allow=alaw,g729");
+                    var codecs = trunk.Codecs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    pjsip.Add("allow=" + (codecs.Length > 0 ? string.Join(',', codecs) : "alaw"));
                     pjsip.Add($"outbound_auth=trunk-{trunk.Id}-auth");
                     pjsip.Add("direct_media=no");
                     pjsip.Add($"aors=trunk-{trunk.Id}");
