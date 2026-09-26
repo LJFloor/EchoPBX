@@ -87,10 +87,9 @@ public class AsteriskController(IAsteriskWorker asterisk, ILogger<AsteriskContro
 
         using var websocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
-        // Only the latest list matters, so a slow client skips updates instead of queueing them.
-        // The handler copies the list, since it runs on the thread that changes it.
+        // Only the latest list matters, so a slow client skips updates instead of queueing them
         var updates = Channel.CreateBounded<List<OngoingCall>>(new BoundedChannelOptions(1) { FullMode = BoundedChannelFullMode.DropOldest });
-        EventHandler<List<OngoingCall>> onUpdated = (_, calls) => updates.Writer.TryWrite([..calls]);
+        EventHandler<List<OngoingCall>> onUpdated = (_, calls) => updates.Writer.TryWrite(calls);
         asterisk.OngoingCallsUpdated += onUpdated;
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted);

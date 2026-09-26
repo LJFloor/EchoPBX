@@ -11,12 +11,12 @@ public interface IAsteriskWorker
     bool IsReady { get; }
 
     /// <summary>
-    /// Get the list of ongoing calls.
+    /// Get a copy of the list of ongoing calls.
     /// </summary>
     List<OngoingCall> OngoingCalls { get; }
     
     /// <summary>
-    /// Event that is triggered when the list of ongoing calls is updated.
+    /// Event that is triggered when the list of ongoing calls is updated. The list is a copy.
     /// </summary>
     public event EventHandler<List<OngoingCall>>? OngoingCallsUpdated;
 

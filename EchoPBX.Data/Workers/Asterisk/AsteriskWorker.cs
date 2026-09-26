@@ -43,7 +43,19 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
     public bool IsReady { get; private set; } = false;
 
     /// <inheritdoc/>
-    public List<OngoingCall> OngoingCalls { get; private set; } = [];
+    public List<OngoingCall> OngoingCalls
+    {
+        get
+        {
+            lock (_ongoingCalls) return [.._ongoingCalls];
+        }
+    }
+
+    /// <summary>
+    /// Only the AMI loop changes this list, but requests read it, so every access is locked and
+    /// the outside world only ever gets a copy.
+    /// </summary>
+    private readonly List<OngoingCall> _ongoingCalls = [];
 
     /// <inheritdoc/>
     public event EventHandler<List<OngoingCall>>? OngoingCallsUpdated;
@@ -794,7 +806,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             _amiClient.Disconnect();
 
             // Whatever was going on is unknown now; the next events rebuild the list
-            OngoingCalls.Clear();
+            lock (_ongoingCalls) _ongoingCalls.Clear();
             OngoingCallsUpdated?.Invoke(this, OngoingCalls);
 
             try
@@ -827,7 +839,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 }
 
                 // Initialize
-                if (amiEvent.EventType == AmiEventType.NewChannel && OngoingCalls.All(x => x.UniqueId != uniqueId && x.UniqueId != linkedId))
+                if (amiEvent.EventType == AmiEventType.NewChannel && _ongoingCalls.All(x => x.UniqueId != uniqueId && x.UniqueId != linkedId))
                 {
                     var trunkMatch = Regex.Match(amiEvent["Channel"], @"^PJSIP/trunk-(\d+)");
                     var extensionMatch = Regex.Match(amiEvent["Channel"], @"^PJSIP/(\d+)");
@@ -894,14 +906,14 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                         }
                     }
 
-                    OngoingCalls.Add(call);
+                    lock (_ongoingCalls) _ongoingCalls.Add(call);
                     OngoingCallsUpdated?.Invoke(this, OngoingCalls);
                 }
 
                 // Waiting in a queue
                 else if (amiEvent.EventType == AmiEventType.QueueCallerJoin)
                 {
-                    var call = OngoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
+                    var call = _ongoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
                     var queueMatch = Regex.Match(amiEvent.GetValueOrDefault("Queue", ""), @"^queue-(\d+)$");
                     if (call == null || !queueMatch.Success) continue;
 
@@ -912,7 +924,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 // Picking up
                 else if (amiEvent.EventType == AmiEventType.BridgeEnter)
                 {
-                    var call = OngoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
+                    var call = _ongoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
                     if (call == null || call.State == CallState.Ongoing) continue;
 
                     var extension = await dbContext.Extensions
@@ -936,7 +948,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 // Call ended
                 else if (amiEvent.EventType == AmiEventType.Hangup)
                 {
-                    var call = OngoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
+                    var call = _ongoingCalls.FirstOrDefault(x => x.UniqueId == uniqueId || x.UniqueId == linkedId);
                     if (call == null) continue;
 
                     // it should be either the external number or the extension number that hangs up
@@ -948,7 +960,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     }
 
 
-                    OngoingCalls.Remove(call);
+                    lock (_ongoingCalls) _ongoingCalls.Remove(call);
                     OngoingCallsUpdated?.Invoke(this, OngoingCalls);
                 }
             }
