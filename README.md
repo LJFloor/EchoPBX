@@ -22,10 +22,20 @@ sudo apt install docker.io
 Then, run the container
 
 ```shell
-sudo docker run -t --network=host -v /opt/echopbx:/data ghcr.io/ljfloor/echopbx:main
+sudo docker run -d --name echopbx --restart unless-stopped --network=host -v /opt/echopbx:/data ghcr.io/ljfloor/echopbx:main
 ```
 
-After which you can access the Web UI by going to http://(serverip):8740.
+After which you can access the Web UI by going to http://(serverip):8740. The container runs in the background and starts again after a reboot. To see the logs, run `sudo docker logs -f echopbx`.
+
+## Updating
+
+Pull the new image, remove the old container and start it again. Your data in `/opt/echopbx` is kept.
+
+```shell
+sudo docker pull ghcr.io/ljfloor/echopbx:main
+sudo docker rm -f echopbx
+sudo docker run -d --name echopbx --restart unless-stopped --network=host -v /opt/echopbx:/data ghcr.io/ljfloor/echopbx:main
+```
 
 # Usage
 
