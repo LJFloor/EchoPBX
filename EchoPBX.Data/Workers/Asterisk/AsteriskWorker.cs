@@ -398,11 +398,11 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
 
                         extensionLines.Add(" same => n,Queue(queue-" + trunk.Queue.Id + ")");
                     }
-                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingSpecificExtensions)
+                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingSpecificExtensions && trunk.Extensions.Any())
                     {
                         extensionLines.Add(" same => n,Dial(" + string.Join("&", trunk.Extensions.Select(x => $"PJSIP/{x}")) + ")");
                     }
-                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingAllExtensions)
+                    else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingAllExtensions && extensions.Length > 0)
                     {
                         extensionLines.Add(" same => n,Dial(" + string.Join("&", extensions.Select(x => $"PJSIP/{x.ExtensionNumber}")) + ")");
                     }
