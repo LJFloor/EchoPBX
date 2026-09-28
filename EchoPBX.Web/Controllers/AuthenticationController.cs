@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using EchoPBX.Data;
 using EchoPBX.Data.Helpers;
 using EchoPBX.Data.Models;
@@ -25,9 +27,7 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
     public async Task<IActionResult> AdminLogin([FromBody] AdminLoginRequestBody body)
     {
         var ipAddress = HttpContext.Connection.RemoteIpAddress!.ToString();
-
-        var isBlacklisted = BlacklistedIPs.TryGetValue(ipAddress, out var blacklistTime) && DateTime.UtcNow - blacklistTime < BlacklistDuration;
-        if (isBlacklisted)
+        if (IsBlacklisted(ipAddress))
         {
             return new ObjectResult(BlockedMessage) { StatusCode = 429 };
         }
@@ -35,18 +35,7 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
         var admin = await dbContext.Admins.AsNoTracking().Where(x => x.Username == body.Username).FirstOrDefaultAsync();
         if (admin is null || !admin.VerifyPassword(body.Password))
         {
-            var attempts = LoginAttempts.AddOrUpdate(ipAddress, 1, (_, count) => count + 1);
-            if (attempts >= MaxLoginAttempts)
-            {
-                BlacklistedIPs[ipAddress] = DateTime.UtcNow;
-                LoginAttempts.TryRemove(ipAddress, out _);
-                logger.LogWarning(
-                    "IP address {IPAddress} has been blacklisted for {Duration} due to too many failed login attempts (more than {MaxLoginAttempts}). Please note that restarting the server will reset this counter",
-                    ipAddress, BlacklistDuration, MaxLoginAttempts);
-                return new ObjectResult(BlockedMessage) { StatusCode = 429 };
-            }
-
-            return Unauthorized("Invalid username or password");
+            return FailedLogin(ipAddress, "Invalid username or password");
         }
 
         LoginAttempts.TryRemove(ipAddress, out _);
@@ -65,6 +54,34 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
         HttpContext.Response.Cookies.Append(AuthenticationMiddleware.TokenCookieName, token, new CookieOptions { HttpOnly = true, Expires = DateTimeOffset.UtcNow.AddHours(24) });
         HttpContext.Response.Cookies.Append("echopbx_username", admin.Username, new CookieOptions { HttpOnly = false, Expires = DateTimeOffset.UtcNow.AddHours(24) });
         return Ok("Login successful");
+    }
+
+    /// <summary>
+    /// Check an extension's credentials for the webphone. The webphone registers with Asterisk
+    /// itself, so no session is created; this only gives a clear error before it tries.
+    /// </summary>
+    [HttpPost("phone/login")]
+    public async Task<IActionResult> PhoneLogin([FromBody] WebPhoneLoginRequestBody body)
+    {
+        var ipAddress = HttpContext.Connection.RemoteIpAddress!.ToString();
+        if (IsBlacklisted(ipAddress))
+        {
+            return new ObjectResult(BlockedMessage) { StatusCode = 429 };
+        }
+
+        var extension = await dbContext.Extensions.AsNoTracking()
+            .Where(x => x.ExtensionNumber == body.ExtensionNumber)
+            .Select(x => new { x.ExtensionNumber, x.DisplayName, x.Password })
+            .FirstOrDefaultAsync();
+
+        // Extension passwords are stored in plain text, since Asterisk needs them for the digest
+        if (extension is null || !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(extension.Password), Encoding.UTF8.GetBytes(body.Password)))
+        {
+            return FailedLogin(ipAddress, "Invalid extension or password");
+        }
+
+        LoginAttempts.TryRemove(ipAddress, out _);
+        return Ok(new { extension.ExtensionNumber, extension.DisplayName });
     }
 
     [HttpPost("admin/logout")]
@@ -110,6 +127,30 @@ public class AuthenticationController(EchoDbContext dbContext, ILogger<Authentic
         }
 
         return Ok("Password changed successfully");
+    }
+
+    private static bool IsBlacklisted(string ipAddress)
+    {
+        return BlacklistedIPs.TryGetValue(ipAddress, out var blacklistTime) && DateTime.UtcNow - blacklistTime < BlacklistDuration;
+    }
+
+    /// <summary>
+    /// Count a failed login, and blacklist the IP address once it has failed too often.
+    /// </summary>
+    private IActionResult FailedLogin(string ipAddress, string message)
+    {
+        var attempts = LoginAttempts.AddOrUpdate(ipAddress, 1, (_, count) => count + 1);
+        if (attempts >= MaxLoginAttempts)
+        {
+            BlacklistedIPs[ipAddress] = DateTime.UtcNow;
+            LoginAttempts.TryRemove(ipAddress, out _);
+            logger.LogWarning(
+                "IP address {IPAddress} has been blacklisted for {Duration} due to too many failed login attempts (more than {MaxLoginAttempts}). Please note that restarting the server will reset this counter",
+                ipAddress, BlacklistDuration, MaxLoginAttempts);
+            return new ObjectResult(BlockedMessage) { StatusCode = 429 };
+        }
+
+        return Unauthorized(message);
     }
 }
 

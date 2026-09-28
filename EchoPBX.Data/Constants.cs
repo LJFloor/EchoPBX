@@ -15,6 +15,12 @@ public static class Constants
     public const ushort HttpPort = 8740;
 
     /// <summary>
+    /// The HTTPS port EchoPBX is served on. The webphone needs it, since browsers only allow
+    /// microphone access on secure pages.
+    /// </summary>
+    public const ushort HttpsPort = 8741;
+
+    /// <summary>
     /// The current version of EchoPBX
     /// </summary>
     public static readonly string Version = $"{DataVersion.Major}.{DataVersion.Minor}.{DataVersion.Build}";

@@ -13,6 +13,8 @@ const router = createRouter({
     routes: [
         { path: '/', component: () => import('./pages/index.vue') },
 
+        { path: '/phone', component: () => import('./pages/phone/index.vue') },
+
         { path: '/setup', component: () => import('./pages/setup/index.vue') },
         { path: '/setup/license', component: () => import('./pages/setup/license.vue') },
         { path: '/setup/create-admin', component: () => import('./pages/setup/create-admin.vue') },

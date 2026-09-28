@@ -13,7 +13,7 @@ public class ExtensionReadRepository(EchoDbContext dbContext, IAsteriskWorker as
         var contacts = await asterisk.GetContacts();
         foreach (var extension in extensions)
         {
-            extension.Connected = contacts.Any(x => x.Endpoint == extension.ExtensionNumber.ToString() && x.Status == ContactStatus.Available);
+            extension.Connected = IsConnected(contacts, extension.ExtensionNumber);
         }
         
         return extensions;
@@ -31,8 +31,16 @@ public class ExtensionReadRepository(EchoDbContext dbContext, IAsteriskWorker as
         }
         
         var contacts = await asterisk.GetContacts();
-        extension.Connected = contacts.Any(x => x.Endpoint == extension.ExtensionNumber.ToString() && x.Status == ContactStatus.Available);
+        extension.Connected = IsConnected(contacts, extension.ExtensionNumber);
         return extension;
+    }
+
+    /// <summary>
+    /// An extension counts as connected when any of its devices is reachable, the webphone included.
+    /// </summary>
+    private static bool IsConnected(ContactDto[] contacts, int extensionNumber)
+    {
+        return contacts.Any(x => (x.Endpoint == extensionNumber.ToString() || x.Endpoint == $"web-{extensionNumber}") && x.Status == ContactStatus.Available);
     }
 
     private IQueryable<Models.Extension> Query()

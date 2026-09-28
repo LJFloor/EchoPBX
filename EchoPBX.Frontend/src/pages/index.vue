@@ -38,6 +38,25 @@ async function login() {
     }
 }
 
+const phoneUrl = window.isSecureContext ? '/phone' : `https://${window.location.hostname}:8741/phone`;
+
+// Opened straight from the click handler, since browsers only allow popups during a user gesture
+function openPhone() {
+    // An empty URL finds the phone if it is already open, without reloading it and ending a call
+    const popup = window.open('', 'echopbx-phone', 'popup,width=300,height=540');
+    if (!popup) {
+        window.location.href = phoneUrl;
+        return;
+    }
+
+    try {
+        if (popup.location.href === 'about:blank') popup.location.href = phoneUrl;
+    } catch {
+        // Cross-origin (the phone runs on the HTTPS port), so it is already open
+    }
+
+    popup.focus();
+}
 
 onMounted(async () => {
   const isSetupResponse = await fetch('/api/system/is-setup');
@@ -76,6 +95,11 @@ onMounted(async () => {
                 <Btn type="submit" design="primary" :label="t('button.login')" :loading="loading" />
             </form>
         </div>
+
+        <a :href="phoneUrl" class="flex items-center justify-center gap-1.5 text-sky-600 hover:underline" @click.prevent="openPhone">
+            <Icon icon="mdi:phone" class="size-4" />
+            {{ t('phone.open') }}
+        </a>
 
         <div>
             <p class="text-center text-sm text-gray-500">© 2025 EchoPBX. All rights reserved.</p>

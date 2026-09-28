@@ -403,7 +403,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
             foreach (var ext in extensions)
             {
                 extensionLines.Add($"exten => {ext.ExtensionNumber},1,NoOp(\"Call to extension {ext.ExtensionNumber}\")");
-                extensionLines.Add($" same => n,Dial(PJSIP/{ext.ExtensionNumber})");
+                extensionLines.Add($" same => n,Dial({DialTarget(ext.ExtensionNumber)})");
                 extensionLines.Add(" same => n,Hangup()");
                 extensionLines.Add("");
             }
@@ -450,11 +450,11 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     }
                     else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingSpecificExtensions && trunk.Extensions.Any())
                     {
-                        extensionLines.Add(" same => n,Dial(" + string.Join("&", trunk.Extensions.Select(x => $"PJSIP/{x}")) + ")");
+                        extensionLines.Add(" same => n,Dial(" + string.Join("&", trunk.Extensions.Select(DialTarget)) + ")");
                     }
                     else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.RingAllExtensions && extensions.Length > 0)
                     {
-                        extensionLines.Add(" same => n,Dial(" + string.Join("&", extensions.Select(x => $"PJSIP/{x.ExtensionNumber}")) + ")");
+                        extensionLines.Add(" same => n,Dial(" + string.Join("&", extensions.Select(x => DialTarget(x.ExtensionNumber))) + ")");
                     }
                     else if (trunk.IncomingCallBehaviour == IncomingCallBehaviour.SendToCallFlow && trunk.CallFlowSlug != null)
                     {
@@ -553,7 +553,9 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
 
                 foreach (var ext in queue.Extensions)
                 {
-                    queuesLines.Add($"member => PJSIP/{ext.ExtensionNumber}" + (string.IsNullOrEmpty(ext.DisplayName) ? "" : $"   ; {ext.DisplayName}"));
+                    var comment = string.IsNullOrEmpty(ext.DisplayName) ? "" : $"   ; {ext.DisplayName}";
+                    queuesLines.Add($"member => PJSIP/{ext.ExtensionNumber}" + comment);
+                    queuesLines.Add($"member => PJSIP/web-{ext.ExtensionNumber}" + comment);
                 }
 
                 queuesLines.Add("");
@@ -641,7 +643,8 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 pjsip.Add($"language={language}");
                 pjsip.Add("transport=transport-udp");
                 pjsip.Add("disallow=all");
-                pjsip.Add("allow=alaw,ulaw,g729,slin");
+                // G.722 first, so HD phones use wideband audio; other phones fall back to G.711
+                pjsip.Add("allow=g722,alaw,ulaw,g729,slin");
                 pjsip.Add($"callerid={ext.DisplayName ?? ext.ExtensionNumber.ToString()} <{ext.ExtensionNumber}>");
                 pjsip.Add($"auth=auth-{ext.ExtensionNumber}");
                 pjsip.Add($"aors={ext.ExtensionNumber}");
@@ -660,6 +663,28 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 // device out. 5 is what they always got.
                 pjsip.Add($"max_contacts={(ext.MaxDevices > 0 ? ext.MaxDevices : 5)}");
                 pjsip.Add("qualify_frequency=10");
+                pjsip.Add("");
+
+                // A second endpoint for the webphone, since WebRTC needs DTLS, ICE and AVPF, which
+                // desk phones do not speak. It shares the auth section, so the login stays the same.
+                pjsip.Add($"[web-{ext.ExtensionNumber}]");
+                pjsip.Add("type=endpoint");
+                pjsip.Add($"language={language}");
+                pjsip.Add("transport=transport-wss");
+                pjsip.Add("webrtc=yes");
+                pjsip.Add("disallow=all");
+                pjsip.Add("allow=opus,ulaw,alaw");
+                pjsip.Add($"callerid={ext.DisplayName ?? ext.ExtensionNumber.ToString()} <{ext.ExtensionNumber}>");
+                pjsip.Add($"auth=auth-{ext.ExtensionNumber}");
+                pjsip.Add($"aors=web-{ext.ExtensionNumber}");
+                if (ext.OutgoingTrunkId != null) pjsip.Add("context=using-trunk-" + ext.OutgoingTrunkId);
+                else pjsip.Add("context=from-internal");
+                pjsip.Add("");
+                pjsip.Add($"[web-{ext.ExtensionNumber}]");
+                pjsip.Add("type=aor");
+                pjsip.Add("max_contacts=1");
+                pjsip.Add("remove_existing=yes");
+                pjsip.Add("qualify_frequency=30");
                 pjsip.Add("");
             }
 
@@ -694,7 +719,10 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                     pjsip.Add($"language={language}");
                     pjsip.Add("transport=transport-udp");
                     pjsip.Add("disallow=all");
-                    var codecs = trunk.Codecs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    // Wideband codecs first, whatever order they were ticked in, or they would never be picked
+                    var codecs = trunk.Codecs.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .OrderBy(x => x switch { "opus" => 0, "g722" => 1, _ => 2 })
+                        .ToArray();
                     pjsip.Add("allow=" + (codecs.Length > 0 ? string.Join(',', codecs) : "alaw"));
                     pjsip.Add($"outbound_auth=trunk-{trunk.Id}-auth");
                     pjsip.Add("direct_media=no");
@@ -855,7 +883,7 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
                 if (amiEvent.EventType == AmiEventType.NewChannel && _ongoingCalls.All(x => x.UniqueId != uniqueId && x.UniqueId != linkedId))
                 {
                     var trunkMatch = Regex.Match(amiEvent["Channel"], @"^PJSIP/trunk-(\d+)");
-                    var extensionMatch = Regex.Match(amiEvent["Channel"], @"^PJSIP/(\d+)");
+                    var extensionMatch = Regex.Match(amiEvent["Channel"], @"^PJSIP/(?:web-)?(\d+)");
 
                     var direction = extensionMatch.Success
                         ? CallDirection.Outgoing
@@ -993,6 +1021,15 @@ public partial class AsteriskWorker : IAsteriskWorker, IWorker
 
         return await dbContext.Extensions.AnyAsync(x => x.ExtensionNumber == internalNumber)
                || await dbContext.CallFlows.AnyAsync(x => x.InternalNumber == internalNumber);
+    }
+
+    /// <summary>
+    /// The Dial() target that rings every device of an extension: the SIP phones and the webphone.
+    /// A target without registered devices is skipped, so the others still ring.
+    /// </summary>
+    private static string DialTarget(int extensionNumber)
+    {
+        return $"PJSIP/{extensionNumber}&PJSIP/web-{extensionNumber}";
     }
 
     /// <summary>
